@@ -6,8 +6,7 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 
 ## Technologiak
 
-- Java 21
-- JavaFX 21
+- OpenJDK 25
 - TCP Socket (halozati kommunikacio)
 - Gson (JSON szerializacio)
 - Maven (build)
