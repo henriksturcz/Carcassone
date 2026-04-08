@@ -7,9 +7,9 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 ## Technologiak
 
 - OpenJDK 25
+- JavaFX 26
 - TCP Socket (halozati kommunikacio)
 - Gson (JSON szerializacio)
-- Maven (build)
 
 ---
 
@@ -17,6 +17,7 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 
 ### Kesz
 
+**Model reteg:**
 - `EdgeType` — el tipusok (CITY, ROAD, FIELD)
 - `TerrainFeature` — terulettipusok (CITY, ROAD, FIELD, MONASTERY)
 - `Tile` — kartyasablon, forgatassal (rotated())
@@ -24,12 +25,33 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `Meeple` — jatekos figuraja, tulajdonos es terulettipus tarolasaval
 - `Player` — jatekos neve, pontszama, szabad figurak szama (MAX = 7)
 - `PlacedTile` — lerakott kartya pozicioval es figurával egyutt
+- `Board` — jatekpalya, lerakott kartyak pozicio szerint indexelve
+
+**GUI reteg:**
+- `MainApp` — JavaFX belepo pont, alapablak mukodik
 
 ### Meg nem kezdett
 
-- Jateklogika (PlacementValidator, FeatureConnector, ScoringEngine, GameEngine)
-- Halozati reteg (Server, ClientHandler, ServerConnection)
-- JavaFX GUI (LoginScreen, LobbyScreen, GameScreen, ResultScreen)
+**Model reteg:**
+- `GameState` — teljes jatekallapat (palya, jatekosok, fazis, aktualis kartya)
+- `TileDeck` — huzopakli (72 kartya definicioja)
+
+**Logika reteg:**
+- `PlacementValidator` — el-illesztes ellenorzese
+- `FeatureConnector` — terulet-osszekotes flood-fill alapon
+- `ScoringEngine` — pontozas
+- `GameEngine` — jatekiranyitas
+
+**Halozati reteg:**
+- `Server`, `ClientHandler`, `GameRoom` — szerver oldal
+- `ServerConnection`, `MessageListener` — kliens oldal
+- `Message`, `MessageType` — kozos uzenetformatom
+
+**GUI reteg:**
+- `LoginScreen` — felhasznalonev es szerver cim megadasa
+- `LobbyScreen` — jatekszobak listaja, csatlakozas / letrehozas
+- `GameScreen` — jatekpalya Canvas alapu rajzolassal
+- `ResultScreen` — vegeredmeny megjelenites
 
 ---
 
@@ -95,35 +117,52 @@ Fontosabb metodusok:
 - `placeMeeple(Meeple)` — figurat helyez a kartyara
 - `removeMeeple()` — eltavolitja es visszaadja a figurat
 
+### Board
+
+A jatekpalya. HashMap-ben tarolja a lerakott kartyakat pozicio szerint indexelve.
+
+Fontosabb metodusok:
+- `placeTile(PlacedTile)` — lerak egy kartyat
+- `getTileAt(Position)` — visszaadja a pozicion levo kartyat
+- `isOccupied(Position)` — foglalt-e a pozicio
+- `hasNeighbour(Position)` — van-e szomszed
+- `getAllTiles()` — osszes kartya, modosithatatlan Map-kent
+
+---
+
+## GUI — JavaFX
+
+Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
+Jelenleg az alapablak mukodik, a kepernyo rendszer epitese folyamatban van.
+
+### Szalszabalyok
+
+| Muvelet | Szal |
+|---|---|
+| GUI elem modositasa | JavaFX Application Thread (JAT) |
+| Halozati kommunikacio | Hatter szal (Task / new Thread) |
+| Halozati valasz megjelenítese | Platform.runLater() |
+
 ---
 
 ## Tervezett fejlesztesi sorrend
 
-### 1. fazis — Modell es jateklogika
+### 1. fazis — Hatro levo modell es logika
 
-Az alapja mindennek. Semmi Socket, semmi JavaFX — csak sima Java osztalyok.
-
-- Hatra levo adatmodellek: Board, GameState, TileDeck
+- `GameState`, `TileDeck` megirasa
 - Kartyapakli: mind a 72 kartya definicioja
-- Elhelyezesi szabalyok validalasa (PlacementValidator)
-- Terulet-osszekotesi logika flood-fill alapon (FeatureConnector)
-- Pontozas (ScoringEngine)
-- Jatekiranyitas (GameEngine)
+- `PlacementValidator`, `FeatureConnector`, `ScoringEngine`, `GameEngine`
 
-### 2. fazis — GUI
+### 2. fazis — GUI befejezese
 
-Ha a logika stabil, a grafikus felulet csak megjeleníti amit kap.
-
-- Bejelentkezo kepernyo (LoginScreen)
-- Lobby — jatekszobak listaja (LobbyScreen)
-- Jatekkepernyo — Canvas alapu palyarajzolas (GameScreen, BoardView)
-- Eredmenykepernyo (ResultScreen)
+- `LoginScreen`, `LobbyScreen`, `GameScreen`, `ResultScreen`
+- Canvas alapu palyarajzolas
 
 ### 3. fazis — Halozat
 
-- Szerver: tobb parhuzamos jatekszoba kezelese
-- Kliens: csatlakozas, uzenetek fogadasa es kuldese
-- Szalkezeles es szinkronizacio
+- Szerver oldal: `Server`, `ClientHandler`, `GameRoom`
+- Kliens oldal: `ServerConnection`, `MessageListener`
+- Kozos uzenetformatom: `Message`, `MessageType`
 
 ---
 
@@ -131,21 +170,23 @@ Ha a logika stabil, a grafikus felulet csak megjeleníti amit kap.
 
 ```
 src/
-└── carcassonne/
-    ├── model/
-    │   ├── EdgeType.java
-    │   ├── TerrainFeature.java
-    │   ├── Tile.java
-    │   ├── Position.java
-    │   ├── Meeple.java
-    │   ├── Player.java
-    │   └── PlacedTile.java
+└── Carcassone/
+    ├── gui/
+    │   └── MainApp.java
     ├── logic/
-    ├── network/
-    │   ├── shared/
-    │   ├── server/
-    │   └── client/
-    └── gui/
+    ├── model/
+    │   ├── Board.java
+    │   ├── EdgeType.java
+    │   ├── Meeple.java
+    │   ├── PlacedTile.java
+    │   ├── Player.java
+    │   ├── Position.java
+    │   ├── TerrainFeature.java
+    │   └── Tile.java
+    └── network/
+        ├── client/
+        ├── server/
+        └── shared/
 ```
 
 ---
@@ -160,3 +201,9 @@ src/
 | Port 10000 felett | Rendszerportok jogosultsagot igenyelnek |
 | JSON kommunikacio (nem Java szerializacio) | Biztonsag, olvashatosag |
 | Javadoc minden publikus osztalyra es metodusra | Kotelezo kovetelmeny |
+
+---
+
+## Szerzok
+
+- [nev]
