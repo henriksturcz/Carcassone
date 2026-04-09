@@ -230,9 +230,3 @@ src/
 | Port 10000 felett | Rendszerportok jogosultsagot igenyelnek |
 | JSON kommunikacio (nem Java szerializacio) | Biztonsag, olvashatosag |
 | Javadoc minden publikus osztalyra es metodusra | Kotelezo kovetelmeny |
-
----
-
-## Szerzok
-
-- [nev]
