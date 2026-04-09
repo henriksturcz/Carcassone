@@ -29,6 +29,9 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 
 **GUI reteg:**
 - `MainApp` — JavaFX belepo pont, alapablak mukodik
+- `SceneManager` — kepernyo-valtasok kezelese
+- `LoginScreen` — felhasznalonev es szerver cim megadasa, validacioval
+- `LobbyScreen` — jatekszobak listaja, csatlakozas / letrehozas / vissza gomb
 
 ### Meg nem kezdett
 
@@ -48,8 +51,6 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `Message`, `MessageType` — kozos uzenetformatom
 
 **GUI reteg:**
-- `LoginScreen` — felhasznalonev es szerver cim megadasa
-- `LobbyScreen` — jatekszobak listaja, csatlakozas / letrehozas
 - `GameScreen` — jatekpalya Canvas alapu rajzolassal
 - `ResultScreen` — vegeredmeny megjelenites
 
@@ -133,7 +134,31 @@ Fontosabb metodusok:
 ## GUI — JavaFX
 
 Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
-Jelenleg az alapablak mukodik, a kepernyo rendszer epitese folyamatban van.
+
+### Kepernyo folyam
+
+```
+MainApp → LoginScreen → LobbyScreen → (GameScreen — kesobb)
+                ↑____________|
+                   vissza gomb
+```
+
+### LoginScreen
+
+Felhasznalonev es szerver cim megadasara szolgal.
+Ures mezo eseten hibauzenet jelenik meg, nem crash.
+Sikeres kitoltes utan atlepunk a LobbyScreen-re.
+
+### LobbyScreen
+
+Megjeleníti a nyitott jatekszobakat.
+Tartalmaz csatlakozas, uj szoba es vissza gombot.
+A szobak listaja jelenleg statikus — halozati bekotes kesobb tortenik.
+
+### SceneManager
+
+Egyetlen helyen kezeli a Stage-et es a Scene-valtasokat.
+Minden kepernyo-valtas ezen keresztul tortenik.
 
 ### Szalszabalyok
 
@@ -155,8 +180,9 @@ Jelenleg az alapablak mukodik, a kepernyo rendszer epitese folyamatban van.
 
 ### 2. fazis — GUI befejezese
 
-- `LoginScreen`, `LobbyScreen`, `GameScreen`, `ResultScreen`
-- Canvas alapu palyarajzolas
+- `GameScreen` — Canvas alapu palyarajzolas
+- `ResultScreen` — vegeredmeny megjelenites
+- Halozati bekotes a meglevo kepernykhoz
 
 ### 3. fazis — Halozat
 
@@ -172,7 +198,10 @@ Jelenleg az alapablak mukodik, a kepernyo rendszer epitese folyamatban van.
 src/
 └── Carcassone/
     ├── gui/
-    │   └── MainApp.java
+    │   ├── MainApp.java
+    │   ├── SceneManager.java
+    │   ├── LoginScreen.java
+    │   └── LobbyScreen.java
     ├── logic/
     ├── model/
     │   ├── Board.java
