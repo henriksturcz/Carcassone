@@ -41,4 +41,14 @@ public class SceneManager {
         primaryStage.setTitle("Lobbys");
         primaryStage.show();
     }
+
+    /**
+     * Atvallt a jatekpalya kepernyo.
+     */
+    public static void showGame() {
+        GameScreen screen = new GameScreen();
+        primaryStage.setScene(new Scene(screen.getRoot(), 1100, 700));
+        primaryStage.setTitle("Carcassonne — Jatek");
+        primaryStage.show();
+    }
 }

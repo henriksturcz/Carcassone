@@ -61,10 +61,14 @@ public class LobbyScreen {
             statusLabel.setText("Uj szoba letrehozasa...");
         });
 
+        Button testButton = new Button("Teszt jatek");
+        testButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white;");
+        testButton.setOnAction(e -> SceneManager.showGame());
+
         Button backButton = new Button("Vissza");
         backButton.setOnAction(e -> SceneManager.showLogin());
 
-        HBox buttons = new HBox(10, joinButton, createButton, backButton);
+        HBox buttons = new HBox(10, joinButton, createButton, testButton, backButton);
         buttons.setAlignment(Pos.CENTER);
 
         root = new VBox(15);

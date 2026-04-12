@@ -29,9 +29,24 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 
 **GUI reteg:**
 - `MainApp` — JavaFX belepo pont, alapablak mukodik
-- `SceneManager` — kepernyo-valtasok kezelese
+- `SceneManager` — kepernyo-valtasok kezelese (showLogin, showLobby, showGame)
 - `LoginScreen` — felhasznalonev es szerver cim megadasa, validacioval
-- `LobbyScreen` — jatekszobak listaja, csatlakozas / letrehozas / vissza gomb
+- `LobbyScreen` — jatekszobak listaja, teszt jatek gombbal
+- `GameScreen` — jatekpalya Canvas alapu rajzolassal, forgatassal, jatekos panellel
+
+### Ismert hianyzossagok / meg nem mukodik
+
+> Ezek tudatos hianyzossagok, nem bugok — a logikai reteg meg nincs megirva.
+
+- **A kartyak veletlenszeruek es nem helyesek** — a `GameScreen` jelenleg teszt kartyakat general
+  veletlen el-konfiguracioval, nem a valodi 72 lapos paklibol huz
+- **El-illesztes ellenorzese nem mukodik** — barmilyen kartya lerakahto barmely poziciora,
+  a `PlacementValidator` meg nincs megirva
+- **Meeple lerakasa nem lehetseges** — a figura lerakasi logika (`FeatureConnector`) meg hianyzik,
+  a passz gomb mindig elerheto de a meeple lerakas nincs implementalva
+- **Pontozas nem mukodik** — a `ScoringEngine` meg nincs megirva
+- **Halozat nem mukodik** — a Login es Lobby kepernyo TCP kapcsolat nelkul mukodik,
+  a szerver/kliens reteg meg hianyzik
 
 ### Meg nem kezdett
 
@@ -51,7 +66,6 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `Message`, `MessageType` — kozos uzenetformatom
 
 **GUI reteg:**
-- `GameScreen` — jatekpalya Canvas alapu rajzolassal
 - `ResultScreen` — vegeredmeny megjelenites
 
 ---
@@ -138,7 +152,7 @@ Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
 ### Kepernyo folyam
 
 ```
-MainApp → LoginScreen → LobbyScreen → (GameScreen — kesobb)
+MainApp → LoginScreen → LobbyScreen → GameScreen
                 ↑____________|
                    vissza gomb
 ```
@@ -152,13 +166,16 @@ Sikeres kitoltes utan atlepunk a LobbyScreen-re.
 ### LobbyScreen
 
 Megjeleníti a nyitott jatekszobakat.
-Tartalmaz csatlakozas, uj szoba es vissza gombot.
+Tartalmaz csatlakozas, uj szoba, vissza es **Teszt jatek** gombot.
+A Teszt jatek gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
 A szobak listaja jelenleg statikus — halozati bekotes kesobb tortenik.
 
-### SceneManager
+### GameScreen
 
-Egyetlen helyen kezeli a Stage-et es a Scene-valtasokat.
-Minden kepernyo-valtas ezen keresztul tortenik.
+Canvas alapu jatekpalya, amely dinamikusan no ahogy kartyak kerulnek ra.
+Bal oldalon jatekos panelek (nev, figurak, pontszam, aktualis jatekos kiemelve).
+Jobb oldalon az aktualis kartya elonetezete, forgatas / lerak / passz gombok.
+Kartyak veletlenszeru teszt adatokkal toltodnek — a valodi pakli kesobb kerult bekotesre.
 
 ### Szalszabalyok
 
@@ -176,19 +193,24 @@ Minden kepernyo-valtas ezen keresztul tortenik.
 
 - `GameState`, `TileDeck` megirasa
 - Kartyapakli: mind a 72 kartya definicioja
-- `PlacementValidator`, `FeatureConnector`, `ScoringEngine`, `GameEngine`
+- `PlacementValidator` — el-illesztes ellenorzese
+- `FeatureConnector` — flood-fill alapu terulet-osszekotes
+- `ScoringEngine` — pontozas
+- `GameEngine` — jatekiranyitas
 
 ### 2. fazis — GUI befejezese
 
-- `GameScreen` — Canvas alapu palyarajzolas
 - `ResultScreen` — vegeredmeny megjelenites
-- Halozati bekotes a meglevo kepernykhoz
+- Valodi kartyapakli bekotese a GameScreen-be
+- El-illesztes ellenorzesnek bekotese
+- Meeple lerakasi lehetoseg hozzaadasa
 
 ### 3. fazis — Halozat
 
 - Szerver oldal: `Server`, `ClientHandler`, `GameRoom`
 - Kliens oldal: `ServerConnection`, `MessageListener`
 - Kozos uzenetformatom: `Message`, `MessageType`
+- Login es Lobby halozati bekotese
 
 ---
 
@@ -201,7 +223,8 @@ src/
     │   ├── MainApp.java
     │   ├── SceneManager.java
     │   ├── LoginScreen.java
-    │   └── LobbyScreen.java
+    │   ├── LobbyScreen.java
+    │   └── GameScreen.java
     ├── logic/
     ├── model/
     │   ├── Board.java
