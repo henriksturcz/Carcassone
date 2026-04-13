@@ -59,7 +59,7 @@ public class Tile {
      * @return az elforgatott kartya
      */
     public Tile rotated() {
-        return new Tile(id, west, north, east, south, hasMonastery, hasCityBadge, rotateConnections(EdgeConnected));
+        return new Tile(id, west, east, north, south, hasMonastery, hasCityBadge, rotateConnections(EdgeConnected));
     }
 
     /**
