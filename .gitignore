@@ -31,3 +31,37 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# IntelliJ
+.idea/
+*.iml
+
+# Build output
+out/
+out/
+
+# JavaFX / libs (ha lokális)
+javafx-sdk-*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven/Gradle (ha később lesz)
+target/
+build/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Build
+out/
+target/
+
+# JavaFX (ne töltsd fel!)
+javafx-sdk/
+
+# OS
+.DS_Store
+Thumbs.db

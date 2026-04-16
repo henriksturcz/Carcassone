@@ -43,12 +43,25 @@ public class SceneManager {
     }
 
     /**
-     * Atvallt a jatekpalya kepernyo.
+     * Atvallt a jatekpalya kepernyore
      */
     public static void showGame() {
         GameScreen screen = new GameScreen();
         primaryStage.setScene(new Scene(screen.getRoot(), 1100, 700));
         primaryStage.setTitle("Carcassonne — Jatek");
+        primaryStage.show();
+    }
+
+    /**
+     * Atvallt a vegeredmeny kepernyore
+     *
+     * @param playerNames  a jatekosok nevei
+     * @param playerScores a jatekosok pontszamai
+     */
+    public static void showResult(String[] playerNames, int[] playerScores) {
+        ResultScreen screen = new ResultScreen(playerNames, playerScores);
+        primaryStage.setScene(new Scene(screen.getRoot(), 800, 600));
+        primaryStage.setTitle("Carcassonne — Eredmeny");
         primaryStage.show();
     }
 }

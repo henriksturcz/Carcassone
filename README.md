@@ -27,24 +27,33 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `PlacedTile` — lerakott kartya pozicioval es figurával egyutt
 - `Board` — jatekpalya, lerakott kartyak pozicio szerint indexelve
 
+**Logika reteg:**
+- `PlacementValidator` — el-illesztes ellenorzese, ervenytelen poziciora nem rakahto kartya
+
 **GUI reteg:**
 - `MainApp` — JavaFX belepo pont, alapablak mukodik
-- `SceneManager` — kepernyo-valtasok kezelese (showLogin, showLobby, showGame)
+- `SceneManager` — kepernyo-valtasok kezelese (showLogin, showLobby, showGame, showResult)
 - `LoginScreen` — felhasznalonev es szerver cim megadasa, validacioval
-- `LobbyScreen` — jatekszobak listaja, teszt jatek gombbal
-- `GameScreen` — jatekpalya Canvas alapu rajzolassal, forgatassal, jatekos panellel
+- `LobbyScreen` — jatekszobak listaja, Teszt jatek gombbal
+- `GameScreen` — teljes jatekpalya kepernyo:
+  - Canvas alapu dinamikusan novo palya
+  - El-illesztes validacio bekotve (PlacementValidator)
+  - Kartya forgatas gombbal (90 fok, oramutatoval)
+  - Meeple lerakasa kulon gombbal, meeple kihagyasa gomb
+  - Jatekos panelek (nev, figurak szama, pontszam, aktualis jatekos kiemelve)
+  - Jatek befejezese gomb a ResultScreen tesztelesehez
+- `ResultScreen` — vegeredmeny kepernyo, gyoztes kiemelese, uj jatek / kilepes gomb
 
 ### Ismert hianyzossagok / meg nem mukodik
 
-> Ezek tudatos hianyzossagok, nem bugok — a logikai reteg meg nincs megirva.
+> Ezek tudatos hianyzossagok, nem bugok — a logikai reteg meg nincs teljesen megirva.
 
 - **A kartyak veletlenszeruek es nem helyesek** — a `GameScreen` jelenleg teszt kartyakat general
   veletlen el-konfiguracioval, nem a valodi 72 lapos paklibol huz
-- **El-illesztes ellenorzese nem mukodik** — barmilyen kartya lerakahto barmely poziciora,
-  a `PlacementValidator` meg nincs megirva
-- **Meeple lerakasa nem lehetseges** — a figura lerakasi logika (`FeatureConnector`) meg hianyzik,
-  a passz gomb mindig elerheto de a meeple lerakas nincs implementalva
-- **Pontozas nem mukodik** — a `ScoringEngine` meg nincs megirva
+- **Pontozas nem mukodik** — a `ScoringEngine` meg nincs megirva, a pontszam csak meeple
+  lerakaskor no 1-gyel (placeholder)
+- **Meeple szabalyok nem ervenyesulnek** — nem ellenorzi hogy a teruleten mar van-e meeple,
+  es nem kerulnek vissza a figurak pontozas utan
 - **Halozat nem mukodik** — a Login es Lobby kepernyo TCP kapcsolat nelkul mukodik,
   a szerver/kliens reteg meg hianyzik
 
@@ -55,7 +64,6 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `TileDeck` — huzopakli (72 kartya definicioja)
 
 **Logika reteg:**
-- `PlacementValidator` — el-illesztes ellenorzese
 - `FeatureConnector` — terulet-osszekotes flood-fill alapon
 - `ScoringEngine` — pontozas
 - `GameEngine` — jatekiranyitas
@@ -64,9 +72,6 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `Server`, `ClientHandler`, `GameRoom` — szerver oldal
 - `ServerConnection`, `MessageListener` — kliens oldal
 - `Message`, `MessageType` — kozos uzenetformatom
-
-**GUI reteg:**
-- `ResultScreen` — vegeredmeny megjelenites
 
 ---
 
@@ -145,6 +150,23 @@ Fontosabb metodusok:
 
 ---
 
+## Logika osztalyok
+
+### PlacementValidator
+
+Ellenorzi hogy egy kartya lerakahto-e egy adott poziciora.
+
+Ellenorzesi sorrend:
+1. Ures palya eseten csak (0,0) ervenyes
+2. Foglalt pozicio ervenytelen
+3. Ha nincs szomszed, ervenytelen
+4. Minden szomszed iranyaban el-egyezes ellenorzese
+
+A `GameScreen` hasznalja: ervenytelen poziciora nem lehet kartyat rakni,
+es csak az ervenyes helyek vannak kiemelve a palyan.
+
+---
+
 ## GUI — JavaFX
 
 Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
@@ -152,30 +174,42 @@ Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
 ### Kepernyo folyam
 
 ```
-MainApp → LoginScreen → LobbyScreen → GameScreen
-                ↑____________|
-                   vissza gomb
+MainApp → LoginScreen → LobbyScreen → GameScreen → ResultScreen
+                ↑____________|                          |
+                   vissza gomb                    Uj jatek → Lobby
 ```
 
 ### LoginScreen
 
 Felhasznalonev es szerver cim megadasara szolgal.
 Ures mezo eseten hibauzenet jelenik meg, nem crash.
-Sikeres kitoltes utan atlepunk a LobbyScreen-re.
 
 ### LobbyScreen
 
 Megjeleníti a nyitott jatekszobakat.
-Tartalmaz csatlakozas, uj szoba, vissza es **Teszt jatek** gombot.
-A Teszt jatek gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
-A szobak listaja jelenleg statikus — halozati bekotes kesobb tortenik.
+A **Teszt jatek** gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
 
 ### GameScreen
 
-Canvas alapu jatekpalya, amely dinamikusan no ahogy kartyak kerulnek ra.
-Bal oldalon jatekos panelek (nev, figurak, pontszam, aktualis jatekos kiemelve).
-Jobb oldalon az aktualis kartya elonetezete, forgatas / lerak / passz gombok.
-Kartyak veletlenszeru teszt adatokkal toltodnek — a valodi pakli kesobb kerult bekotesre.
+Canvas alapu jatekpalya kepernyo.
+
+| Elem | Leiras |
+|---|---|
+| Bal panel | Jatekos kartyak nevvel, figurak szamával, pontszammal |
+| Kozep | Scrollozhato Canvas palya, dinamikusan novo |
+| Jobb panel | Aktualis kartya elonetezet, forgatas, lerak, meeple gombok |
+| Jatek befejezese gomb | Atdob a ResultScreen-re (teszt cel) |
+
+Jatek menete a kepernyon:
+1. Kattints egy ervenyes (kiemelt) helyre a palyan
+2. Forgasd el a kartyat ha kell
+3. Nyomd meg a Lerak gombot
+4. Rakj le meeple-t vagy kattints a Meeple kihagyasa gombra
+
+### ResultScreen
+
+Megjeleníti a vegso pontszamokat es a gyoztest.
+Tartalmaz Uj jatek (→ Lobby) es Kilepes gombot.
 
 ### Szalszabalyok
 
@@ -193,17 +227,15 @@ Kartyak veletlenszeru teszt adatokkal toltodnek — a valodi pakli kesobb kerult
 
 - `GameState`, `TileDeck` megirasa
 - Kartyapakli: mind a 72 kartya definicioja
-- `PlacementValidator` — el-illesztes ellenorzese
 - `FeatureConnector` — flood-fill alapu terulet-osszekotes
 - `ScoringEngine` — pontozas
 - `GameEngine` — jatekiranyitas
 
-### 2. fazis — GUI befejezese
+### 2. fazis — GUI + logika osszekotese
 
-- `ResultScreen` — vegeredmeny megjelenites
 - Valodi kartyapakli bekotese a GameScreen-be
-- El-illesztes ellenorzesnek bekotese
-- Meeple lerakasi lehetoseg hozzaadasa
+- Helyes pontozas megjelenítese
+- Meeple szabalyok ervenyesítese
 
 ### 3. fazis — Halozat
 
@@ -224,8 +256,10 @@ src/
     │   ├── SceneManager.java
     │   ├── LoginScreen.java
     │   ├── LobbyScreen.java
-    │   └── GameScreen.java
+    │   ├── GameScreen.java
+    │   └── ResultScreen.java
     ├── logic/
+    │   └── PlacementValidator.java
     ├── model/
     │   ├── Board.java
     │   ├── EdgeType.java
