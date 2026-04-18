@@ -35,7 +35,7 @@ public class LobbyScreen {
         roomList.setPrefHeight(300);
         roomList.setPrefWidth(400);
 
-        // TODO: halozatrol toltodik fel
+        //halozatrol toltodik fel
         roomList.getItems().addAll(
                 "Szoba #1 — 2/5 jatekos",
                 "Szoba #2 — 4/5 jatekos"
@@ -51,13 +51,13 @@ public class LobbyScreen {
                 statusLabel.setText("Valassz ki egy szobat!");
                 return;
             }
-            // TODO: csatlakozas kuldese a szervernek
+            //csatlakozas kuldese a szervernek
             statusLabel.setText("Csatlakozas: " + selected);
         });
 
         Button createButton = new Button("Uj szoba");
         createButton.setOnAction(e -> {
-            // TODO: uj szoba letrehozasa
+            //uj szoba letrehozasa
             statusLabel.setText("Uj szoba letrehozasa...");
         });
 

@@ -26,61 +26,59 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 - `Player` — jatekos neve, pontszama, szabad figurak szama (MAX = 7)
 - `PlacedTile` — lerakott kartya pozicioval es figurával egyutt
 - `Board` — jatekpalya, lerakott kartyak pozicio szerint indexelve
+- `GameState` — teljes jatekallapat (palya, jatekosok, fazis, aktualis kartya)
+- `TileDeck` — huzopakli vazlata, draw() es shuffle() mukodik
 
 **Logika reteg:**
-- `PlacementValidator` — el-illesztes ellenorzese, ervenytelen poziciora nem rakahto kartya
+- `PlacementValidator` — el-illesztes ellenorzese
+- `ScoringEngine` — kolostor pontozas, varos/ut pontszam szamitas, gyoztes meghatarozas
 
 **GUI reteg:**
-- `MainApp` — JavaFX belepo pont, alapablak mukodik
-- `SceneManager` — kepernyo-valtasok kezelese (showLogin, showLobby, showGame, showResult)
-- `LoginScreen` — felhasznalonev es szerver cim megadasa, validacioval
+- `MainApp` — JavaFX belepo pont
+- `SceneManager` — kepernyo-valtasok kezelese
+- `LoginScreen` — felhasznalonev es szerver cim megadasa
 - `LobbyScreen` — jatekszobak listaja, Teszt jatek gombbal
-- `GameScreen` — teljes jatekpalya kepernyo:
-  - Canvas alapu dinamikusan novo palya
-  - El-illesztes validacio bekotve (PlacementValidator)
-  - Kartya forgatas gombbal (90 fok, oramutatoval)
-  - Meeple lerakasa kulon gombbal, meeple kihagyasa gomb
-  - Jatekos panelek (nev, figurak szama, pontszam, aktualis jatekos kiemelve)
-  - Jatek befejezese gomb a ResultScreen tesztelesehez
-- `ResultScreen` — vegeredmeny kepernyo, gyoztes kiemelese, uj jatek / kilepes gomb
+- `GameScreen` — teljes jatekpalya kepernyo validacioval es meeple kezelesssel
+- `ResultScreen` — vegeredmeny kepernyo
 
-### Ismert hianyzossagok / meg nem mukodik
+### Meg szukseges munka
 
-> Ezek tudatos hianyzossagok, nem bugok — a logikai reteg meg nincs teljesen megirva.
+**TileDeck — kartyapakli feltoltese:**
+A `TileDeck` osztaly vazlata megvan, a `draw()`, `remaining()` es `shuffle()` metodusok mukodnek.
+Ami meg hianyzik: a `buildDeck()` metodus tartalma, azaz mind a 72 kartya definicioja
+a helyes el-konfiguraciokkal es connectedEdges beallitasokkal.
+Ez onallo, nagy munka — referencia: boardgamegeek.com/image/115467/carcassonne.
+A kezdolap (`drawStartTile()`) egyelore egy egyszeru teszt kartyat ad vissza,
+ezt is le kell cserelni a valodi kezdolarapra.
 
-- **A kartyak veletlenszeruek es nem helyesek** — a `GameScreen` jelenleg teszt kartyakat general
-  veletlen el-konfiguracioval, nem a valodi 72 lapos paklibol huz
-- **Pontozas nem mukodik** — a `ScoringEngine` meg nincs megirva, a pontszam csak meeple
-  lerakaskor no 1-gyel (placeholder)
-- **Meeple szabalyok nem ervenyesulnek** — nem ellenorzi hogy a teruleten mar van-e meeple,
-  es nem kerulnek vissza a figurak pontozas utan
-- **Halozat nem mukodik** — a Login es Lobby kepernyo TCP kapcsolat nelkul mukodik,
-  a szerver/kliens reteg meg hianyzik
+**FeatureConnector — meg nem kezdett:**
+Az ut es varos befejezesnek ellenorzese flood-fill alapon meg hianyzik.
+A `ScoringEngine` ut/varos pontozasa ennek elkeszulte utan kothetо be teljesen.
 
-### Meg nem kezdett
+**GameEngine — meg nem kezdett:**
+A jatekiranyito osztaly amely osszekoti a modellt es a logikат.
+Felelos a korsorrendert, a fazisok valtasaert es a pontozas meghivasaert.
+Nem tud GUI-rol es nem tud Socketrol.
 
-**Model reteg:**
-- `GameState` — teljes jatekallapat (palya, jatekosok, fazis, aktualis kartya)
-- `TileDeck` — huzopakli (72 kartya definicioja)
-
-**Logika reteg:**
-- `FeatureConnector` — terulet-osszekotes flood-fill alapon
-- `ScoringEngine` — pontozas
-- `GameEngine` — jatekiranyitas
-
-**Halozati reteg:**
+**Halozati reteg — meg nem kezdett:**
 - `Server`, `ClientHandler`, `GameRoom` — szerver oldal
 - `ServerConnection`, `MessageListener` — kliens oldal
 - `Message`, `MessageType` — kozos uzenetformatom
+
+### Ismert hianyzossagok / meg nem mukodik
+
+- **A kartyak veletlenszeruek** — a GameScreen meg teszt kartyakat hasznal,
+  a buildDeck() elkeszulte utan kothetok be a valodi kartyak
+- **Ut es varos pontozas** — a ScoringEngine szamitja de a FeatureConnector nelkul
+  nem tudja meghatározni hogy egy terulet be van-e fejezve
+- **Halozat** — a Login es Lobby kepernyo TCP kapcsolat nelkul mukodik
 
 ---
 
 ## Modell osztalyok
 
 ### EdgeType
-
 Egy kartya elinek tipusat irja le — ezt hasznalja az illesztesvalidalas.
-
 ```
 CITY   — varosfal el
 ROAD   — ut el
@@ -88,9 +86,7 @@ FIELD  — mezo/ret el
 ```
 
 ### TerrainFeature
-
 Egy kartyán beluli terulettipus — erre lehet figurat rakni, ez alapjan tortenik a pontozas.
-
 ```
 CITY       — varosresz
 ROAD       — ut
@@ -99,77 +95,67 @@ MONASTERY  — kolostor
 ```
 
 ### Tile
-
-A kartyasablon. Nem konkret lerakott peldany, hanem a kartya tipus leiroja.
-Tartalmazza a negy el tipusat, hogy van-e kolostor vagy varoscimer,
-es hogy melyik elek tartoznak ugyanahhoz a teruletszigethez (connectedEdges).
-
-A `rotated()` metodus uj peldanyt ad vissza 90 fokkal elforgatva (oramutatoval megegyezo iranyban).
-Az elek es az el-osszekotetesek is forognak.
+A kartyasablon. Tartalmazza a negy el tipusat, kolostor/varoscimer flageket,
+es az osszetartozo el-csoportokat (connectedEdges).
+A `rotated()` metodus uj peldanyt ad vissza 90 fokkal elforgatva — az elek is forognak.
 
 ### Position
-
-Racs koordinata (x, y) record tipuskent — az equals() es hashCode() automatikus,
-igy HashMap kulcskent biztonsagosan hasznalhato.
-
-Tartalmaz szomszed navigacios metodusokat: `north()`, `south()`, `east()`, `west()`.
+Racs koordinata (x, y) record tipuskent — equals() es hashCode() automatikus.
+Szomszed navigacios metodusok: `north()`, `south()`, `east()`, `west()`.
 
 ### Meeple
-
-Egy konkret figura peldany. Tarolja hogy melyik jatekose es melyik teruletre raktak.
+Egy konkret figura peldany — tulajdonos jatekos es terulettipus tarolasaval.
 
 ### Player
-
-Egy jatekost reprezental. Tarolja a nevet, a pontszamot es a szabad figurak szamat.
-Maximum 7 figura lehet egy jatekosnal (`MAX_MEEPLES = 7`).
-
-Fontosabb metodusok:
-- `placeMeeple()` — csokkenti a szabad figurak szamat
-- `returnMeeple()` — visszaad egy figurat (pontozas utan)
-- `addScore(int)` — pontot ad hozza
+Jatekos neve, pontszama, szabad figurak szama (MAX = 7).
+- `placeMeeple()` — figura lerakasa
+- `returnMeeple()` — figura visszavetele
+- `addScore(int)` — pont hozzaadasa
 
 ### PlacedTile
-
-Egy konkretan lerakott kartya a palyan. Tartalmazza a kartyasablont,
-a poziciot es az esetleges figurat.
-
-Fontosabb metodusok:
-- `placeMeeple(Meeple)` — figurat helyez a kartyara
-- `removeMeeple()` — eltavolitja es visszaadja a figurat
+Lerakott kartya a palyan — kartyasablon + pozicio + esetleges figura.
+- `placeMeeple(Meeple)` — figura lerakasa
+- `removeMeeple()` — figura eltavolitasa
 
 ### Board
-
-A jatekpalya. HashMap-ben tarolja a lerakott kartyakat pozicio szerint indexelve.
-
-Fontosabb metodusok:
-- `placeTile(PlacedTile)` — lerak egy kartyat
-- `getTileAt(Position)` — visszaadja a pozicion levo kartyat
-- `isOccupied(Position)` — foglalt-e a pozicio
-- `hasNeighbour(Position)` — van-e szomszed
+A jatekpalya, HashMap alapon pozicio szerint indexelve.
+- `placeTile(PlacedTile)` — kartya lerakasa
+- `getTileAt(Position)` — kartya lekerdezese
 - `getAllTiles()` — osszes kartya, modosithatatlan Map-kent
+
+### GameState
+A jatek teljes allapota: palya, jatekosok, fazis, aktualis kartya, utolso lerakasi pozicio.
+Fazisok: WAITING → PLACE_TILE → PLACE_MEEPLE → GAME_OVER
+
+### TileDeck
+A huzopakli. A `draw()` huz egy kartyat, `remaining()` megadja a maradekot.
+A `buildDeck()` tartalma meg hianyzik — ez tartalmazza majd a 72 kartya definiciojat.
 
 ---
 
 ## Logika osztalyok
 
 ### PlacementValidator
-
 Ellenorzi hogy egy kartya lerakahto-e egy adott poziciora.
-
 Ellenorzesi sorrend:
-1. Ures palya eseten csak (0,0) ervenyes
-2. Foglalt pozicio ervenytelen
-3. Ha nincs szomszed, ervenytelen
-4. Minden szomszed iranyaban el-egyezes ellenorzese
+1. Ures palya: csak (0,0) ervenyes
+2. Foglalt pozicio: ervenytelen
+3. Nincs szomszed: ervenytelen
+4. El-egyezes minden szomszed iranyaban
 
-A `GameScreen` hasznalja: ervenytelen poziciora nem lehet kartyat rakni,
-es csak az ervenyes helyek vannak kiemelve a palyan.
+### ScoringEngine
+A pontozasi logika.
+- Befejezett kolostor: 9 pont (maga + 8 szomszed)
+- Befejezetlen kolostor (jatek vegen): 1 + szomszedok szama
+- Befejezett varos: 2 pont/kartya + 2 pont/badge
+- Befejezetlen varos: 1 pont/kartya + 1 pont/badge
+- Befejezett/befejezetlen ut: 1 pont/kartya
+- Egyenloseg eseten mindenki kap pontot
+- `getWinners()` — legtobb ponttal rendelkezo jatekos(ok)
 
 ---
 
 ## GUI — JavaFX
-
-Az alkalmazas JavaFX 26 alapu grafikus felulettel rendelkezik.
 
 ### Kepernyo folyam
 
@@ -180,23 +166,20 @@ MainApp → LoginScreen → LobbyScreen → GameScreen → ResultScreen
 ```
 
 ### LoginScreen
-
 Felhasznalonev es szerver cim megadasara szolgal.
 Ures mezo eseten hibauzenet jelenik meg, nem crash.
 
 ### LobbyScreen
-
 Megjeleníti a nyitott jatekszobakat.
-A **Teszt jatek** gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
+A Teszt jatek gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
 
 ### GameScreen
-
-Canvas alapu jatekpalya kepernyo.
+Canvas alapu jatekpalya kepernyo, dinamikusan novo.
 
 | Elem | Leiras |
 |---|---|
 | Bal panel | Jatekos kartyak nevvel, figurak szamával, pontszammal |
-| Kozep | Scrollozhato Canvas palya, dinamikusan novo |
+| Kozep | Scrollozhato Canvas palya |
 | Jobb panel | Aktualis kartya elonetezet, forgatas, lerak, meeple gombok |
 | Jatek befejezese gomb | Atdob a ResultScreen-re (teszt cel) |
 
@@ -207,9 +190,8 @@ Jatek menete a kepernyon:
 4. Rakj le meeple-t vagy kattints a Meeple kihagyasa gombra
 
 ### ResultScreen
-
 Megjeleníti a vegso pontszamokat es a gyoztest.
-Tartalmaz Uj jatek (→ Lobby) es Kilepes gombot.
+Tartalmaz Uj jatek es Kilepes gombot.
 
 ### Szalszabalyok
 
@@ -223,19 +205,17 @@ Tartalmaz Uj jatek (→ Lobby) es Kilepes gombot.
 
 ## Tervezett fejlesztesi sorrend
 
-### 1. fazis — Hatro levo modell es logika
+### 1. fazis — Hatro levo logika
 
-- `GameState`, `TileDeck` megirasa
-- Kartyapakli: mind a 72 kartya definicioja
+- `TileDeck.buildDeck()` — mind a 72 kartya definicioja
 - `FeatureConnector` — flood-fill alapu terulet-osszekotes
-- `ScoringEngine` — pontozas
-- `GameEngine` — jatekiranyitas
+- `GameEngine` — jatekiranyitas, korsorolrend, faziskezeles
 
 ### 2. fazis — GUI + logika osszekotese
 
 - Valodi kartyapakli bekotese a GameScreen-be
 - Helyes pontozas megjelenítese
-- Meeple szabalyok ervenyesítese
+- Meeple szabalyok teljes ervenyesítese
 
 ### 3. fazis — Halozat
 
@@ -259,16 +239,19 @@ src/
     │   ├── GameScreen.java
     │   └── ResultScreen.java
     ├── logic/
-    │   └── PlacementValidator.java
+    │   ├── PlacementValidator.java
+    │   └── ScoringEngine.java
     ├── model/
     │   ├── Board.java
     │   ├── EdgeType.java
+    │   ├── GameState.java
     │   ├── Meeple.java
     │   ├── PlacedTile.java
     │   ├── Player.java
     │   ├── Position.java
     │   ├── TerrainFeature.java
-    │   └── Tile.java
+    │   ├── Tile.java
+    │   └── TileDeck.java
     └── network/
         ├── client/
         ├── server/
@@ -287,3 +270,5 @@ src/
 | Port 10000 felett | Rendszerportok jogosultsagot igenyelnek |
 | JSON kommunikacio (nem Java szerializacio) | Biztonsag, olvashatosag |
 | Javadoc minden publikus osztalyra es metodusra | Kotelezo kovetelmeny |
+
+---

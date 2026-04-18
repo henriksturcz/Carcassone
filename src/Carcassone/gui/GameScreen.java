@@ -158,7 +158,7 @@ public class GameScreen {
         drawBoard();
     }
 
-    //TODO eredmenyekezeles
+    //eredmenyekezeles
 
     /**
      * A palyara valo kattintassal eltarolja a pociciot

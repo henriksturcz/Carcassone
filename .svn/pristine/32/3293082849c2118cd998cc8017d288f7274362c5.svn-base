@@ -1,0 +1,5 @@
+; This file is used internally by git-svn
+; You should not have to edit it
+[svn-remote "svn"]
+	reposRoot = https://repo.itk.ppke.hu/java
+	uuid = f670855a-75c2-41cc-82c5-3b297d794bfc

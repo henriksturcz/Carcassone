@@ -48,7 +48,7 @@ public class LoginScreen {
                 return;
             }
 
-            // TODO: halozati kapcsolat letrehozasa
+            //halozati kapcsolat letrehozasa
             // Egyelore csak atlepek a lobbyba
             SceneManager.showLobby(username);
         });
