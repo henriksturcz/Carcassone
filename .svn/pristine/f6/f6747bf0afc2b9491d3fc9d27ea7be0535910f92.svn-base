@@ -1,0 +1,10 @@
+module Carcassone {
+    requires javafx.controls;
+    requires javafx.fxml;
+    requires javafx.graphics;
+
+    exports Carcassone.gui;
+    exports Carcassone.model;
+    exports Carcassone.logic;
+    //exports Carcassone.network;
+}

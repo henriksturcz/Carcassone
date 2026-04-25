@@ -1,0 +1,524 @@
+package Carcassone.gui;
+
+import Carcassone.logic.PlacementValidator;
+import Carcassone.model.*;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.image.Image;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import Carcassone.model.EdgeType;
+import Carcassone.model.Position;
+import Carcassone.model.Tile;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A jatekpalya kepernyo
+ * Az aktualis kartyat kezeli a lerakas, forgatas, passz muveleteket.
+ */
+public class GameScreen {
+
+    private static final int TILE_SIZE = 80;
+    private static final int PADDING = 5;
+
+    private final BorderPane root;
+
+    /** Palya */
+    private final Canvas boardCanvas;
+    private final GraphicsContext gc;
+
+    private final VBox playerPanel;
+    private final TileDeck tileDeck = new TileDeck();
+
+    private final Canvas previewCanvas;
+    private final Label currentPlayerLabel;
+    private final Label phaseLabel;
+    private final Button rotateButton;
+    private final Button placeButton;
+    private final Button meepleButton;
+    private final Button skipMeepleButton;
+
+    /** Allapotok */
+    private final Map<Position, Tile> placedTiles = new HashMap<>();
+    private final Map<Position, Integer> meepleOnTile = new HashMap<>();
+    private final PlacementValidator validator = new PlacementValidator();
+
+    private Tile currentTile;
+    private int currentRotation = 0;
+    private Position pendingPosition = null;
+    private boolean meeplePhase = false;
+
+    private int minX = 0, maxX = 0, minY = 0, maxY = 0;
+
+    // Teszt jatekosok
+    private final String[] playerNames = {"Player 1", "Player 2", "Player 3"};
+    private final Color[] playerColors = {Color.BLUE, Color.RED, Color.GREEN};
+    private final int[] playerScores = {0, 0, 0};
+    private final int[] playerMeeples = {7, 7, 7};
+    private int currentPlayerIndex = 0;
+
+    /** A jatekpalya kepernyo osszes eleme */
+    public GameScreen() {
+        boardCanvas = new Canvas(800, 600);
+        gc = boardCanvas.getGraphicsContext2D();
+
+        ScrollPane boardScroll = new ScrollPane(boardCanvas);
+        boardScroll.setPannable(true);
+        boardScroll.setFitToWidth(false);
+        boardScroll.setFitToHeight(false);
+        boardScroll.setStyle("-fx-background: #5C3A1E; -fx-background-color: #5C3A1E;");
+
+        boardCanvas.setOnMouseClicked(e -> {
+            int col = (int) (e.getX() / TILE_SIZE) - PADDING + minX;
+            int row = (int) (e.getY() / TILE_SIZE) - PADDING + minY;
+            handleBoardClick(new Position(col, row));
+        });
+
+        /** Jobb oldali panel tartzalmazza a kartyakat es az akcio lehetosegeket */
+        currentPlayerLabel = new Label("Soron: " + playerNames[0]);
+        currentPlayerLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        phaseLabel = new Label("Rakj le egy kartyat!");
+        phaseLabel.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 12px;");
+
+        Label previewLabel = new Label("Aktualis kartya:");
+        previewLabel.setStyle("-fx-text-fill: white;");
+
+        previewCanvas = new Canvas(120, 120);
+
+        rotateButton = new Button("Forgatas");
+        rotateButton.setMaxWidth(Double.MAX_VALUE);
+        rotateButton.setOnAction(e -> rotateTile());
+
+        placeButton = new Button("Lerak");
+        placeButton.setMaxWidth(Double.MAX_VALUE);
+        placeButton.setDisable(true);
+        placeButton.setOnAction(e -> placeTile());
+
+        meepleButton = new Button("Meeple lerak");
+        meepleButton.setMaxWidth(Double.MAX_VALUE);
+        meepleButton.setDisable(true);
+        meepleButton.setOnAction(e -> placeMeeple());
+
+        skipMeepleButton = new Button("Meeple kihagyasa");
+        skipMeepleButton.setMaxWidth(Double.MAX_VALUE);
+        skipMeepleButton.setDisable(true);
+        skipMeepleButton.setOnAction(e -> endTurn());
+
+        Button endGameButton = new Button("Jatek befejezese");
+        endGameButton.setMaxWidth(Double.MAX_VALUE);
+        endGameButton.setStyle("-fx-background-color: #8B0000; -fx-text-fill: white;");
+        endGameButton.setOnAction(e -> SceneManager.showResult(playerNames, playerScores));
+
+        VBox rightPanel = new VBox(12,
+                currentPlayerLabel,
+                phaseLabel,
+                new javafx.scene.control.Separator(),
+                previewLabel,
+                previewCanvas,
+                rotateButton,
+                placeButton,
+                new javafx.scene.control.Separator(),
+                meepleButton,
+                skipMeepleButton,
+                new javafx.scene.control.Separator(),
+                endGameButton
+        );
+
+        rightPanel.setPadding(new Insets(15));
+        rightPanel.setAlignment(Pos.TOP_CENTER);
+        rightPanel.setStyle("-fx-background-color: #3B2010;");
+        rightPanel.setPrefWidth(170);
+
+        /**
+         * Bal oldali panel
+         * Itt vannak a jatekosok
+         */
+        playerPanel = new VBox(10);
+        playerPanel.setPadding(new Insets(15));
+        playerPanel.setStyle("-fx-background-color: #3B2010;");
+        playerPanel.setPrefWidth(180);
+        refreshPlayerPanel();
+
+        root = new BorderPane();
+        root.setCenter(boardScroll);
+        root.setLeft(playerPanel);
+        root.setRight(rightPanel);
+        root.setStyle("-fx-background-color: #5C3A1E;");
+
+        /**
+         * Test kezdo kartya
+         */
+        // Kezdolap lerakasa 0,0 ra a pakliobol
+        Tile startTile = tileDeck.drawStartTile();
+        if (startTile != null) {
+            placedTiles.put(new Position(0, 0), startTile);
+            updateBounds(new Position(0, 0));
+        }
+        // Elso kartya huzasa
+        currentTile = tileDeck.isEmpty() ? createTestTile("FALLBACK") : tileDeck.draw();
+        drawPreview();
+        drawBoard();
+    }
+
+    //eredmenyekezeles
+
+    /**
+     * A palyara valo kattintassal eltarolja a pociciot
+     * Meeple fazisban: meeple lerakasa a legutobb lerakott kartyara
+     * @param pos a kattintott racs pozicio
+     */
+    private void handleBoardClick(Position pos) {
+
+        if (meeplePhase) return;
+        if (placedTiles.containsKey(pos)) return;
+        if (!placedTiles.isEmpty() && !hasNeighbour(pos)) return;
+
+        // DEBUG
+        Tile north = placedTiles.get(pos.north());
+        Tile south = placedTiles.get(pos.south());
+        Tile east  = placedTiles.get(pos.east());
+        Tile west  = placedTiles.get(pos.west());
+        System.out.println("=== KATTINTAS: " + pos);
+        System.out.println("  currentTile: N=" + currentTile.getNorth() + " S=" + currentTile.getSouth() + " E=" + currentTile.getEast() + " W=" + currentTile.getWest());
+        if (north != null) System.out.println("  eszaki szomszed S ele: " + north.getSouth());
+        if (south != null) System.out.println("  deli szomszed N ele: "  + south.getNorth());
+        if (east  != null) System.out.println("  keleti szomszed W ele: " + east.getWest());
+        if (west  != null) System.out.println("  nyugati szomszed E ele: " + west.getEast());
+        // DEBUG VEGE
+
+        if (!validator.isValid(placedTiles, currentTile, pos)) {
+            phaseLabel.setText("Ide nem rakhatod le!");
+            phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
+            return;
+        }
+
+        phaseLabel.setText("Rakj le egy kartyat!");
+        phaseLabel.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 12px;");
+
+        pendingPosition = pos;
+        placeButton.setDisable(false);
+        drawBoard();
+        highlightPosition(pos);
+    }
+
+    /** Elforgatja az aktualis kartyat 90 fokkal oramutatoval megegyezo iranyban */
+    private void rotateTile() {
+        if (currentTile == null || meeplePhase) return;
+        currentRotation = (currentRotation + 90) % 360;
+        currentTile = currentTile.rotated();
+        drawPreview();
+        if (pendingPosition != null) {
+            if (!validator.isValid(placedTiles, currentTile, pendingPosition)) {
+                pendingPosition = null;
+                placeButton.setDisable(true);
+            }
+            drawBoard();
+            if (pendingPosition != null) highlightPosition(pendingPosition);
+        }
+    }
+
+    /** Lerakja az aktualis kartyat a kivalasztott poziciora */
+    private void placeTile() {
+        if (pendingPosition == null || currentTile == null) return;
+
+        placedTiles.put(pendingPosition, currentTile);
+        updateBounds(pendingPosition);
+
+        meeplePhase = true;
+        rotateButton.setDisable(true);
+        placeButton.setDisable(true);
+        meepleButton.setDisable(playerMeeples[currentPlayerIndex] <= 0);
+        skipMeepleButton.setDisable(false);
+
+        phaseLabel.setText("Rakj le meeple-t vagy hagyrd ki!");
+        phaseLabel.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 12px;");
+
+        drawBoard();
+        drawPreview();
+    }
+
+    /**
+     * Lerakja az aktualis jatekos meeplejet a legutobb lerakott kartyara
+     */
+    private void placeMeeple() {
+        if (!meeplePhase || pendingPosition == null) return;
+        if (playerMeeples[currentPlayerIndex] <= 0) return;
+
+        playerMeeples[currentPlayerIndex]--;
+        meepleOnTile.put(pendingPosition, currentPlayerIndex);
+
+        playerScores[currentPlayerIndex] += 1;
+
+        endTurn();
+    }
+
+    /** Lezarja a kort */
+    private void endTurn() {
+        meeplePhase = false;
+        pendingPosition = null;
+        currentRotation = 0;
+
+        rotateButton.setDisable(false);
+        placeButton.setDisable(true);
+        meepleButton.setDisable(true);
+        skipMeepleButton.setDisable(true);
+
+        currentPlayerIndex = (currentPlayerIndex + 1) % playerNames.length;
+        currentPlayerLabel.setText("Soron: " + playerNames[currentPlayerIndex]);
+        phaseLabel.setText("Rakj le egy kartyat!");
+        phaseLabel.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 12px;");
+
+        // Kovetkezo kartya huzasa a pakliobol
+        currentTile = tileDeck.isEmpty() ? createTestTile("FALLBACK") : tileDeck.draw();
+        refreshPlayerPanel();
+        drawBoard();
+        drawPreview();
+    }
+
+    private void drawBoard() {
+        int cols = (maxX - minX + 1) + PADDING * 2;
+        int rows = (maxY - minY + 1) + PADDING * 2;
+
+        double canvasW = Math.max(cols * TILE_SIZE, 800);
+        double canvasH = Math.max(rows * TILE_SIZE, 600);
+        boardCanvas.setWidth(canvasW);
+        boardCanvas.setHeight(canvasH);
+
+        gc.setFill(Color.web("#5C3A1E"));
+        gc.fillRect(0, 0, canvasW, canvasH);
+
+        gc.setStroke(Color.web("#7A5230", 0.4));
+        gc.setLineWidth(0.5);
+        for (int c = 0; c <= cols; c++)
+            gc.strokeLine(c * TILE_SIZE, 0, c * TILE_SIZE, canvasH);
+        for (int r = 0; r <= rows; r++)
+            gc.strokeLine(0, r * TILE_SIZE, canvasW, r * TILE_SIZE);
+
+        if (!meeplePhase) {
+            for (int x = minX - PADDING; x <= maxX + PADDING; x++) {
+                for (int y = minY - PADDING; y <= maxY + PADDING; y++) {
+                    Position pos = new Position(x, y);
+                    if (!placedTiles.containsKey(pos)
+                            && (placedTiles.isEmpty() || hasNeighbour(pos))
+                            && validator.isValid(placedTiles, currentTile, pos)) {
+                        int cx = (x - minX + PADDING) * TILE_SIZE;
+                        int cy = (y - minY + PADDING) * TILE_SIZE;
+                        gc.setFill(Color.web("#FFFFFF", 0.15));
+                        gc.fillRect(cx + 2, cy + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                    }
+                }
+            }
+        }
+
+        for (Map.Entry<Position, Tile> entry : placedTiles.entrySet()) {
+            Position pos = entry.getKey();
+            int cx = (pos.x() - minX + PADDING) * TILE_SIZE;
+            int cy = (pos.y() - minY + PADDING) * TILE_SIZE;
+            drawTile(gc, entry.getValue(), cx, cy, TILE_SIZE);
+
+            if (meepleOnTile.containsKey(pos)) {
+                int pi = meepleOnTile.get(pos);
+                gc.setFill(playerColors[pi]);
+                gc.fillOval(cx + TILE_SIZE / 2.0 - 8, cy + TILE_SIZE / 2.0 - 8, 16, 16);
+                gc.setStroke(Color.WHITE);
+                gc.setLineWidth(1.5);
+                gc.strokeOval(cx + TILE_SIZE / 2.0 - 8, cy + TILE_SIZE / 2.0 - 8, 16, 16);
+            }
+        }
+    }
+
+    /**
+     * Rajzol egy kartyat a megadott poziciora es meretre
+     * Ha a kartyahoz van kep azt rajzolja ki
+     * Ha nincs a szines teglalap modszert hasznalja
+     *
+     * @param gc     a grafikus kontextus
+     * @param tile   a rajzolandó kartya
+     * @param x      bal felso sarok x koordinataja pixelben
+     * @param y      bal felso sarok y koordinataja pixelben
+     * @param size   a kartya merete pixelben
+     */
+    private void drawTile(GraphicsContext gc, Tile tile, int x, int y, int size) {
+        Image img = TileImageCache.get(tile.getImageFile());
+
+        if (img != null) {
+            // Forgatas szoge fokbol radianba
+            double angle = tile.getRotation() * Math.PI / 180.0;
+
+            if (angle == 0) {
+                gc.drawImage(img, x, y, size, size);
+            } else {
+                // Menti az aktualis allapotot forgat a kartya kozeppontja kore majd visszaall
+                gc.save();
+                gc.translate(x + size / 2.0, y + size / 2.0);
+                gc.rotate(tile.getRotation());
+                gc.drawImage(img, -size / 2.0, -size / 2.0, size, size);
+                gc.restore();
+            }
+        } else {
+            // Szines teglalap teszt kartyakhoz
+            int t = size / 4;
+            gc.setFill(Color.web("#7DBF5A"));
+            gc.fillRect(x, y, size, size);
+            drawEdge(gc, tile.getNorth(), x, y, size, "NORTH");
+            drawEdge(gc, tile.getSouth(), x, y, size, "SOUTH");
+            drawEdge(gc, tile.getEast(),  x, y, size, "EAST");
+            drawEdge(gc, tile.getWest(),  x, y, size, "WEST");
+            if (tile.isHasMonastery()) {
+                gc.setFill(Color.web("#D4A017"));
+                gc.fillOval(x + t, y + t, t, t);
+            }
+            if (tile.isHasCityBadge()) {
+                gc.setFill(Color.GOLD);
+                gc.fillText("★", x + size / 2.0 - 6, y + size / 2.0 + 4);
+            }
+        }
+
+        // Keret mindig rajzolodik
+        gc.setStroke(Color.web("#3B2010"));
+        gc.setLineWidth(1.5);
+        gc.strokeRect(x, y, size, size);
+    }
+
+    /**
+     * Rajzolja egy kartya egyik eljet
+     */
+    private void drawEdge(GraphicsContext gc, EdgeType edge, int x, int y, int size, String dir) {
+        Color color = switch (edge) {
+            case CITY  -> Color.web("#C8A064");
+            case ROAD  -> Color.web("#E0D8C0");
+            case FIELD -> Color.web("#7DBF5A");
+        };
+        gc.setFill(color);
+        int t = size / 4;
+        switch (dir) {
+            case "NORTH" -> gc.fillRect(x + t, y,            size - t * 2, t);
+            case "SOUTH" -> gc.fillRect(x + t, y + size - t, size - t * 2, t);
+            case "EAST"  -> gc.fillRect(x + size - t, y + t, t, size - t * 2);
+            case "WEST"  -> gc.fillRect(x,            y + t, t, size - t * 2);
+        }
+    }
+
+    /**
+     * Rajzolja az aktualis kartya elonetezetet
+     */
+    private void drawPreview() {
+        GraphicsContext pgc = previewCanvas.getGraphicsContext2D();
+        pgc.setFill(Color.web("#5C3A1E"));
+        pgc.fillRect(0, 0, 120, 120);
+        if (currentTile != null) {
+            drawTile(pgc, currentTile, 5, 5, 110);
+        }
+    }
+
+    /**
+     * Kiemeli a kivalasztott poziciot sarga kerettel
+     *
+     * @param pos a kiemelendo pozicio
+     */
+    private void highlightPosition(Position pos) {
+        int cx = (pos.x() - minX + PADDING) * TILE_SIZE;
+        int cy = (pos.y() - minY + PADDING) * TILE_SIZE;
+        gc.setStroke(Color.YELLOW);
+        gc.setLineWidth(3);
+        gc.strokeRect(cx + 1, cy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+
+    /** Frissiti a bal oldali jatekos panelt az aktualis allapot alapjan */
+    private void refreshPlayerPanel() {
+        playerPanel.getChildren().clear();
+        Label header = new Label("Jatekosok");
+        header.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: white;");
+        playerPanel.getChildren().add(header);
+
+        for (int i = 0; i < playerNames.length; i++) {
+            VBox card = new VBox(4);
+            String border = (i == currentPlayerIndex)
+                    ? "-fx-border-color: yellow; -fx-border-width: 2;"
+                    : "-fx-border-color: #7A5230; -fx-border-width: 1;";
+            card.setStyle("-fx-background-color: #4A2C10; -fx-padding: 8; -fx-background-radius: 6;" + border);
+
+            Label name = new Label(playerNames[i]);
+            name.setStyle("-fx-text-fill: " + toHex(playerColors[i]) + "; -fx-font-weight: bold;");
+
+            Label info = new Label("Figurak: " + playerMeeples[i] + "   Pont: " + playerScores[i]);
+            info.setStyle("-fx-text-fill: #D4C4A0; -fx-font-size: 11px;");
+
+            card.getChildren().addAll(name, info);
+            playerPanel.getChildren().add(card);
+        }
+    }
+
+    /** Segedfuggvenyek */
+
+    /**
+     * Szomszed vizsgalatat vegzi
+     *
+     * @param pos a vizsgalt pozicio
+     * @return igaz ha van szomszed
+     */
+    private boolean hasNeighbour(Position pos) {
+        return placedTiles.containsKey(pos.north())
+                || placedTiles.containsKey(pos.south())
+                || placedTiles.containsKey(pos.east())
+                || placedTiles.containsKey(pos.west());
+    }
+
+    /**
+     * Minden lerakott kartyaval bovul a palyameret igy a maximumot szamitja ez a fuggveny
+     *
+     * @param pos az uj lerakasi pozicio
+     */
+    private void updateBounds(Position pos) {
+        minX = Math.min(minX, pos.x());
+        maxX = Math.max(maxX, pos.x());
+        minY = Math.min(minY, pos.y());
+        maxY = Math.max(maxY, pos.y());
+    }
+
+    /**
+     * Letrehoz egy teszt kartyat
+     *
+     * @param id a kartya azonositoja
+     * @return az uj teszt kartya
+     */
+    private Tile createTestTile(String id) {
+        EdgeType[] edges = {EdgeType.FIELD, EdgeType.CITY, EdgeType.ROAD, EdgeType.FIELD};
+        int r = (int) (Math.random() * 4);
+        return new Tile(id,
+                edges[r % 4],
+                edges[(r + 1) % 4],
+                edges[(r + 2) % 4],
+                edges[(r + 3) % 4],
+                false, false,
+                java.util.List.of()
+        );
+    }
+
+    /**
+     * A szint hex stringge alakitja
+     *
+     * @param color a szin
+     * @return hex string pl #FF0000
+     */
+    private String toHex(Color color) {
+        return String.format("#%02X%02X%02X",
+                (int) (color.getRed() * 255),
+                (int) (color.getGreen() * 255),
+                (int) (color.getBlue() * 255));
+    }
+
+    /** Get fuggveny */
+    public BorderPane getRoot() {
+        return root;
+    }
+}

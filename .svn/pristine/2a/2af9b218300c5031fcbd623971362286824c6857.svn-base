@@ -1,0 +1,376 @@
+package Carcassone.model;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * A huzopaklit reprezentalja
+ * Es veletlenszeru sorrendben tartja oket
+ */
+public class TileDeck {
+
+    private final List<Tile> deck;
+    private Tile startTile;
+
+    /**
+     * Letrehozza es megkeveri a paklit
+     * A kezdolap ki van emelve
+     */
+    public TileDeck() {
+        this.deck = new ArrayList<>(buildDeck());
+        Collections.shuffle(deck);
+    }
+
+    /**
+     * Huz egy kartyat a pakli tetejérol
+     *
+     * @return a huzott kartya
+     * @throws IllegalStateException ha a pakli ures
+     */
+    public Tile draw() {
+        if (deck.isEmpty()) {
+            throw new IllegalStateException("A pakli ures");
+        }
+        return deck.remove(deck.size() - 1);
+    }
+
+    /**
+     * Visszaadja a kezdolarapot
+     * Mindig (0,0)-ra kerul a jatek elején
+     *
+     * @return a kezdolap
+     */
+    public Tile drawStartTile() {
+        return startTile;
+    }
+
+    /**
+     * Megvizsgalja hogy a pakli ures
+     *
+     * @return igaz ha nincs tobb kartya
+     */
+    public boolean isEmpty() {
+        return deck.isEmpty();
+    }
+
+    public int remaining() {
+        return deck.size();
+    }
+
+    /**
+     * Felépíti a teljes 71 kartyás paklit (a kezdolap nelkul)
+     *
+     * @return a kartyak listaja
+     */
+    protected List<Tile> buildDeck() {
+        List<Tile> tiles = new ArrayList<>();
+
+        startTile = new Tile("START",
+                EdgeType.CITY, EdgeType.ROAD, EdgeType.FIELD, EdgeType.ROAD,
+                false, false,
+                List.of(Set.of("NORTH"), Set.of("EAST", "WEST")),
+                "1000009583_tile08.png"
+        );
+
+        // A tipus: 4 db — mezo minden oldalon + kolostor
+        String[] aImages = {
+                "1000009582_tile01.png", "1000009582_tile02.png",
+                "1000009582_tile03.png", "1000009582_tile04.png"
+        };
+        for (int i = 0; i < 4; i++) {
+            tiles.add(new Tile("A" + i,
+                    EdgeType.FIELD, EdgeType.FIELD, EdgeType.FIELD, EdgeType.FIELD,
+                    true, false,
+                    List.of(Set.of("NORTH", "EAST", "SOUTH", "WEST")),
+                    aImages[i]
+            ));
+        }
+
+        // B tipus: 2 db — varos eszakon, mezo tobbi
+        String[] bImages = {
+                "1000009572_tile05.png", "1000009572_tile06.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("B" + i,
+                    EdgeType.CITY, EdgeType.FIELD, EdgeType.FIELD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST", "SOUTH", "WEST")),
+                    bImages[i]
+            ));
+        }
+
+        // C tipus: 1 db — varos minden oldalon + badge
+        tiles.add(new Tile("C",
+                EdgeType.CITY, EdgeType.CITY, EdgeType.CITY, EdgeType.CITY,
+                false, true,
+                List.of(Set.of("NORTH", "EAST", "SOUTH", "WEST")),
+                "1000009572_tile04.png"
+        ));
+
+        // D tipus: 3 db — varos eszakon, ut kelet-del
+        String[] dImages = {
+                "1000009583_tile01.png", "1000009583_tile02.png", "1000009583_tile03.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("D" + i,
+                    EdgeType.CITY, EdgeType.ROAD, EdgeType.ROAD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST", "SOUTH"), Set.of("WEST")),
+                    dImages[i]
+            ));
+        }
+
+        // E tipus: 5 db — varos eszakon, mezo tobbi
+        String[] eImages = {
+                "1000009572_tile01.png", "1000009572_tile02.png", "1000009572_tile03.png",
+                "1000009572_tile07.png", "1000009572_tile08.png"
+        };
+        for (int i = 0; i < 5; i++) {
+            tiles.add(new Tile("E" + i,
+                    EdgeType.CITY, EdgeType.FIELD, EdgeType.FIELD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST", "SOUTH", "WEST")),
+                    eImages[i]
+            ));
+        }
+
+        // F tipus: 2 db — varos kelet-nyugat atmenő + badge
+        String[] fImages = {
+                "1000009578_tile01.png", "1000009578_tile02.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("F" + i,
+                    EdgeType.FIELD, EdgeType.CITY, EdgeType.FIELD, EdgeType.CITY,
+                    false, true,
+                    List.of(Set.of("EAST", "WEST"), Set.of("NORTH", "SOUTH")),
+                    fImages[i]
+            ));
+        }
+
+        // G tipus: 1 db — varos eszak-del atmenő
+        tiles.add(new Tile("G",
+                EdgeType.CITY, EdgeType.FIELD, EdgeType.CITY, EdgeType.FIELD,
+                false, false,
+                List.of(Set.of("NORTH", "SOUTH"), Set.of("EAST", "WEST")),
+                "1000009578_tile03.png"
+        ));
+
+        // H tipus: 3 db — varos kelet es nyugat, fuggetlenek
+        String[] hImages = {
+                "1000009578_tile04.png", "1000009578_tile05.png", "1000009578_tile06.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("H" + i,
+                    EdgeType.FIELD, EdgeType.CITY, EdgeType.FIELD, EdgeType.CITY,
+                    false, false,
+                    List.of(Set.of("EAST"), Set.of("WEST"), Set.of("NORTH", "SOUTH")),
+                    hImages[i]
+            ));
+        }
+
+        // I tipus: 2 db — varos eszak es kelet, fuggetlenek
+        String[] iImages = {
+                "1000009578_tile07.png", "1000009578_tile08.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("I" + i,
+                    EdgeType.CITY, EdgeType.CITY, EdgeType.FIELD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST"), Set.of("SOUTH", "WEST")),
+                    iImages[i]
+            ));
+        }
+
+        // J tipus: 3 db — varos eszakon, ut del-kelet
+        String[] jImages = {
+                "1000009577_tile01.png", "1000009577_tile02.png", "1000009577_tile03.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("J" + i,
+                    EdgeType.CITY, EdgeType.ROAD, EdgeType.FIELD, EdgeType.ROAD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST", "WEST"), Set.of("SOUTH")),
+                    jImages[i]
+            ));
+        }
+
+        // K tipus: 3 db — varos eszakon, ut del-nyugat
+        String[] kImages = {
+                "1000009577_tile04.png", "1000009577_tile05.png", "1000009577_tile06.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("K" + i,
+                    EdgeType.CITY, EdgeType.FIELD, EdgeType.ROAD, EdgeType.ROAD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("SOUTH", "WEST"), Set.of("EAST")),
+                    kImages[i]
+            ));
+        }
+
+        // L tipus: 3 db — varos eszakon, T keresztezodes
+        String[] lImages = {
+                "1000009577_tile07.png", "1000009579_tile01.png", "1000009579_tile02.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("L" + i,
+                    EdgeType.CITY, EdgeType.ROAD, EdgeType.ROAD, EdgeType.ROAD,
+                    false, false,
+                    List.of(Set.of("NORTH"), Set.of("EAST"), Set.of("SOUTH"), Set.of("WEST")),
+                    lImages[i]
+            ));
+        }
+
+        // M tipus: 2 db — varos eszak-nyugat sarok + badge
+        String[] mImages = {
+                "1000009576_tile01.png", "1000009576_tile03.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("M" + i,
+                    EdgeType.CITY, EdgeType.FIELD, EdgeType.FIELD, EdgeType.CITY,
+                    false, true,
+                    List.of(Set.of("NORTH", "WEST"), Set.of("EAST", "SOUTH")),
+                    mImages[i]
+            ));
+        }
+
+        // N tipus: 3 db — varos eszak-nyugat sarok, nincs badge
+        String[] nImages = {
+                "1000009576_tile04.png", "1000009576_tile05.png", "1000009576_tile06.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("N" + i,
+                    EdgeType.CITY, EdgeType.FIELD, EdgeType.FIELD, EdgeType.CITY,
+                    false, false,
+                    List.of(Set.of("NORTH", "WEST"), Set.of("EAST", "SOUTH")),
+                    nImages[i]
+            ));
+        }
+
+        // O tipus: 2 db — varos eszak-nyugat + ut del-kelet + badge
+        String[] oImages = {
+                "1000009575_tile04.png", "1000009575_tile05.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("O" + i,
+                    EdgeType.CITY, EdgeType.ROAD, EdgeType.ROAD, EdgeType.CITY,
+                    false, true,
+                    List.of(Set.of("NORTH", "WEST"), Set.of("EAST", "SOUTH")),
+                    oImages[i]
+            ));
+        }
+
+        // P tipus: 3 db — varos eszak-nyugat + ut del-kelet, nincs badge
+        String[] pImages = {
+                "1000009575_tile01.png", "1000009575_tile02.png", "1000009575_tile03.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("P" + i,
+                    EdgeType.CITY, EdgeType.ROAD, EdgeType.ROAD, EdgeType.CITY,
+                    false, false,
+                    List.of(Set.of("NORTH", "WEST"), Set.of("EAST", "SOUTH")),
+                    pImages[i]
+            ));
+        }
+
+        // Q tipus: 1 db — varos 3 oldalon + badge
+        tiles.add(new Tile("Q",
+                EdgeType.CITY, EdgeType.CITY, EdgeType.FIELD, EdgeType.CITY,
+                false, true,
+                List.of(Set.of("NORTH", "EAST", "WEST"), Set.of("SOUTH")),
+                "1000009579_tile05.png"
+        ));
+
+        // R tipus: 3 db — varos 3 oldalon, nincs badge
+        String[] rImages = {
+                "1000009579_tile03.png", "1000009579_tile04.png", "1000009579_tile06.png"
+        };
+        for (int i = 0; i < 3; i++) {
+            tiles.add(new Tile("R" + i,
+                    EdgeType.CITY, EdgeType.CITY, EdgeType.FIELD, EdgeType.CITY,
+                    false, false,
+                    List.of(Set.of("NORTH", "EAST", "WEST"), Set.of("SOUTH")),
+                    rImages[i]
+            ));
+        }
+
+        // S tipus: 2 db — varos 3 oldalon + ut del + badge
+        String[] sImages = {
+                "1000009579_tile07.png", "1000009575_tile06.png"
+        };
+        for (int i = 0; i < 2; i++) {
+            tiles.add(new Tile("S" + i,
+                    EdgeType.CITY, EdgeType.CITY, EdgeType.ROAD, EdgeType.CITY,
+                    false, true,
+                    List.of(Set.of("NORTH", "EAST", "WEST"), Set.of("SOUTH")),
+                    sImages[i]
+            ));
+        }
+
+        // T tipus: 1 db — varos 3 oldalon + ut del, nincs badge
+        tiles.add(new Tile("T",
+                EdgeType.CITY, EdgeType.CITY, EdgeType.ROAD, EdgeType.CITY,
+                false, false,
+                List.of(Set.of("NORTH", "EAST", "WEST"), Set.of("SOUTH")),
+                "1000009575_tile07.png"
+        ));
+
+        // U tipus: 8 db — ut eszak-del atmenő
+        String[] uImages = {
+                "1000009580_tile01.png", "1000009580_tile02.png",
+                "1000009580_tile03.png", "1000009580_tile04.png",
+                "1000009581_tile01.png", "1000009581_tile02.png",
+                "1000009581_tile03.png", "1000009581_tile04.png"
+        };
+        for (int i = 0; i < 8; i++) {
+            tiles.add(new Tile("U" + i,
+                    EdgeType.ROAD, EdgeType.FIELD, EdgeType.ROAD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("NORTH", "SOUTH"), Set.of("EAST", "WEST")),
+                    uImages[i]
+            ));
+        }
+
+        // V tipus: 9 db — ut kelet-del kanyar
+        String[] vImages = {
+                "1000009580_tile05.png", "1000009580_tile06.png",
+                "1000009580_tile07.png", "1000009580_tile08.png",
+                "1000009581_tile05.png", "1000009581_tile06.png",
+                "1000009581_tile07.png", "1000009581_tile08.png",
+                "1000009582_tile05.png"
+        };
+        for (int i = 0; i < 9; i++) {
+            tiles.add(new Tile("V" + i,
+                    EdgeType.FIELD, EdgeType.ROAD, EdgeType.ROAD, EdgeType.FIELD,
+                    false, false,
+                    List.of(Set.of("EAST", "SOUTH"), Set.of("NORTH", "WEST")),
+                    vImages[i]
+            ));
+        }
+
+        // W tipus: 4 db — T keresztezodes
+        String[] wImages = {
+                "1000009570_tile01.png", "1000009570_tile04.png",
+                "1000009570_tile07.png", "1000009583_tile04.png"
+        };
+        for (int i = 0; i < 4; i++) {
+            tiles.add(new Tile("W" + i,
+                    EdgeType.FIELD, EdgeType.ROAD, EdgeType.ROAD, EdgeType.ROAD,
+                    false, false,
+                    List.of(Set.of("EAST"), Set.of("SOUTH"), Set.of("WEST"), Set.of("NORTH")),
+                    wImages[i]
+            ));
+        }
+
+        // X tipus: 1 db — negyiranyos keresztezodes
+        tiles.add(new Tile("X",
+                EdgeType.ROAD, EdgeType.ROAD, EdgeType.ROAD, EdgeType.ROAD,
+                false, false,
+                List.of(Set.of("NORTH"), Set.of("EAST"), Set.of("SOUTH"), Set.of("WEST")),
+                "1000009570_tile02.png"
+        ));
+
+        return tiles;
+    }
+}

@@ -1,0 +1,44 @@
+package Carcassone.gui;
+
+import javafx.scene.image.Image;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Betolti es gyorsitotarazba helyezi a kartya kepeket
+ */
+public class TileImageCache {
+
+    private static final Map<String, Image> cache = new HashMap<>();
+    private static final String BASE_PATH = "/tiles/";
+
+    /**
+     * Visszaadja a megadott fajlnevhez tartozo kepet
+     * Ha meg nem volt betoltve, most toltodik be
+     *
+     * @param filename a kepfajl neve
+     * @return a betoltott kep
+     */
+    public static Image get(String filename) {
+        if (filename == null || filename.isEmpty()) return null;
+        return cache.computeIfAbsent(filename, f -> {
+            try {
+                var stream = TileImageCache.class.getResourceAsStream(BASE_PATH + f);
+                if (stream == null) return null;
+                return new Image(stream);
+            } catch (Exception e) {
+                System.err.println("Nem sikerult betolteni: " + f);
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Elore betolti az osszes megadott kepet
+     *
+     * @param filenames a betoltendo fajlnevek
+     */
+    public static void preload(String... filenames) {
+        for (String f : filenames) get(f);
+    }
+}
