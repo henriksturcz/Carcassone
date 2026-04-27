@@ -1,0 +1,358 @@
+package Carcassone.network.server;
+
+import Carcassone.logic.GameEngine;
+import Carcassone.model.*;
+import Carcassone.network.shared.Message;
+import Carcassone.network.shared.MessageType;
+import com.google.gson.Gson;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/** Egy jatekszobat reprezental */
+public class GameRoom {
+
+    private final int roomId;
+    private final Server server;
+    private final List<ClientHandler> players = new CopyOnWriteArrayList<>();
+    private final List<ClientHandler> observers = new CopyOnWriteArrayList<>();
+    private GameEngine engine;
+    private boolean started = false;
+    private final Gson gson = new Gson();
+
+    /**
+     * Letrehoz egy uj jatekszobat
+     *
+     * @param roomId a szoba egyedi azonositoja
+     * @param server a fo szerver referencia
+     */
+    public GameRoom(int roomId, Server server) {
+        this.roomId = roomId;
+        this.server = server;
+    }
+
+    /**
+     * Hozzaad egy jatekost a szobához
+     * Maximum 5 jatekos lehet inditott jatekhoz nem lehet csatlakozni
+     *
+     * @param handler a csatlakozni kívano kliens
+     * @return igaz ha a csatlakozas sikeres volt
+     */
+    public synchronized boolean addPlayer(ClientHandler handler) {
+        if (started || players.size() >= 5) return false;
+
+        players.add(handler);
+
+        Message ok = new Message(MessageType.JOIN_OK);
+        ok.put("roomId", roomId);
+        ok.put("playerCount", players.size());
+        handler.send(gson.toJson(ok));
+
+        broadcastRoomUpdate();
+
+        if (players.size() == 5) {
+            startGame(handler);
+        }
+
+        return true;
+    }
+
+    /**
+     * Hozzaad egy megfigyelot
+     *
+     * @param handler a megfigyelokent csatlakozni kívano kliens
+     */
+    public synchronized void addObserver(ClientHandler handler) {
+        observers.add(handler);
+        Message ok = new Message(MessageType.JOIN_OK);
+        ok.put("roomId", roomId);
+        ok.put("observer", true);
+        handler.send(gson.toJson(ok));
+
+        if (started && engine != null) {
+            handler.send(gson.toJson(buildStateMessage()));
+        }
+    }
+
+    /**
+     * Elinditja a jatekot ha legalabb 2 jatekos van
+     * Csak a szoba letrehozoja indithatja el
+     *
+     * @param requester a jatekot inditani kívano kliens
+     */
+    public synchronized void startGame(ClientHandler requester) {
+        if (started) return;
+        if (players.size() < 2) {
+            requester.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Legalabb 2 jatekos kell")
+            ));
+            return;
+        }
+        if (!players.isEmpty() && !players.get(0).equals(requester) && players.size() < 5) {
+            requester.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Csak a letrehozo indithatja")
+            ));
+            return;
+        }
+
+        started = true;
+
+        List<Player> playerList = new ArrayList<>();
+        for (ClientHandler h : players) {
+            playerList.add(new Player(h.getUsername()));
+        }
+
+        engine = new GameEngine(playerList);
+        engine.startGame();
+
+        broadcastState();
+
+        notifyCurrentPlayer();
+    }
+
+    /**
+     * Kezeli a kartya lerakasi kerelmet
+     *
+     * @param sender   a kuldo kliens
+     * @param x        a pozicio x koordinataja
+     * @param y        a pozicio y koordinataja
+     * @param rotation a forgatas foka (0, 90, 180, 270)
+     */
+    public synchronized void handlePlaceTile(ClientHandler sender, int x, int y, int rotation) {
+        if (!started || engine == null) return;
+        if (!isCurrentPlayer(sender)) {
+            sender.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Nem te kovetkezel")
+            ));
+            return;
+        }
+
+        boolean success = engine.placeTile(new Position(x, y), rotation);
+        if (success) {
+            broadcastState();
+        } else {
+            sender.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Ervenytelen lerakas")
+            ));
+        }
+    }
+
+    /**
+     * Kezeli a meeple lerakasi kerelmet
+     *
+     * @param sender    a kuldo kliens
+     * @param feature   a terulet tipusa (CITY, ROAD, FIELD, MONASTERY)
+     * @param direction az irany (NORTH, EAST, SOUTH, WEST)
+     */
+    public synchronized void handlePlaceMeeple(ClientHandler sender,
+                                               String feature, String direction) {
+        if (!started || engine == null) return;
+        if (!isCurrentPlayer(sender)) {
+            sender.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Nem te kovetkezel")
+            ));
+            return;
+        }
+
+        try {
+            TerrainFeature tf = TerrainFeature.valueOf(feature);
+            boolean success = engine.placeMeeple(tf, direction);
+            if (success) {
+                broadcastState();
+                if (engine.isGameOver()) {
+                    broadcastGameOver();
+                } else {
+                    notifyCurrentPlayer();
+                }
+            } else {
+                sender.send(gson.toJson(
+                        new Message(MessageType.ERROR).put("msg", "Ervenytelen meeple lerakas")
+                ));
+            }
+        } catch (IllegalArgumentException e) {
+            sender.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Ismeretlen terulet tipus: " + feature)
+            ));
+        }
+    }
+
+    /**
+     * Kezeli a meeple kihagyasi kerelmet
+     *
+     * @param sender a kuldo kliens
+     */
+    public synchronized void handleSkipMeeple(ClientHandler sender) {
+        if (!started || engine == null) return;
+        if (!isCurrentPlayer(sender)) {
+            sender.send(gson.toJson(
+                    new Message(MessageType.ERROR).put("msg", "Nem te kovetkezel")
+            ));
+            return;
+        }
+
+        engine.skipMeeple();
+        broadcastState();
+
+        if (engine.isGameOver()) {
+            broadcastGameOver();
+        } else {
+            notifyCurrentPlayer();
+        }
+    }
+
+    /**
+     * Kezeli ha egy jatekos kileepett
+     *
+     * @param handler a kileepett kliens
+     */
+    public synchronized void handlePlayerLeft(ClientHandler handler) {
+        players.remove(handler);
+        observers.remove(handler);
+
+        if (!handler.isObserver()) {
+            Message msg = new Message(MessageType.PLAYER_LEFT);
+            msg.put("username", handler.getUsername());
+            broadcastToAll(gson.toJson(msg));
+        }
+    }
+
+    /** Elkuldi az aktualis jatekallapat minden jatekosnak es megfigyelonek */
+    private void broadcastState() {
+        String json = gson.toJson(buildStateMessage());
+        broadcastToAll(json);
+    }
+
+    /** Ertesiti az aktualis jatekost hogy o kovetkezik */
+    private void notifyCurrentPlayer() {
+        if (engine == null) return;
+        String currentUsername = engine.getState().getCurrentPlayer().getName();
+
+        for (ClientHandler h : players) {
+            if (h.getUsername().equals(currentUsername)) {
+                Message msg = new Message(MessageType.YOUR_TURN);
+                msg.put("username", currentUsername);
+                h.send(gson.toJson(msg));
+                break;
+            }
+        }
+    }
+
+    /** Elkuldi a jatek vegi eredmenyt minden kliensnek */
+    private void broadcastGameOver() {
+        Message msg = new Message(MessageType.GAME_OVER);
+
+        List<Map<String, Object>> scores = new ArrayList<>();
+        for (Player p : engine.getState().getPlayers()) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("name", p.getName());
+            entry.put("score", p.getScore());
+            scores.add(entry);
+        }
+        msg.put("scores", gson.toJson(scores));
+
+        List<String> winnerNames = new ArrayList<>();
+        for (Player w : engine.getWinners()) {
+            winnerNames.add(w.getName());
+        }
+        msg.put("winners", gson.toJson(winnerNames));
+
+        broadcastToAll(gson.toJson(msg));
+    }
+
+    /** Elkuldi egy uzenetet minden jatekosnak es megfigyelonek
+     *
+     * @param json az elkuldenő uzenet JSON formaban
+     */
+    private void broadcastToAll(String json) {
+        for (ClientHandler h : players) h.send(json);
+        for (ClientHandler h : observers) h.send(json);
+    }
+
+    /** Elkuldi a szoba frissitett adatait minden kliensnek */
+    private void broadcastRoomUpdate() {
+        Message msg = new Message(MessageType.ROOM_UPDATE);
+        msg.put("roomId", roomId);
+        msg.put("playerCount", players.size());
+        msg.put("started", started);
+        broadcastToAll(gson.toJson(msg));
+    }
+
+    /**
+     * Felepiti a jatekallapot uzenetet
+     *
+     * @return az allapot uzenet
+     */
+    private Message buildStateMessage() {
+        Message msg = new Message(MessageType.GAME_STATE);
+        msg.put("roomId", roomId);
+
+        if (engine != null) {
+            GameState state = engine.getState();
+            msg.put("phase", state.getCurrentPhase().name());
+            msg.put("currentPlayer", state.getCurrentPlayer().getName());
+
+            List<Map<String, Object>> playerData = new ArrayList<>();
+            for (Player p : state.getPlayers()) {
+                Map<String, Object> pd = new HashMap<>();
+                pd.put("name", p.getName());
+                pd.put("score", p.getScore());
+                pd.put("meeples", p.getAvailableMeeples());
+                playerData.add(pd);
+            }
+            msg.put("players", gson.toJson(playerData));
+
+            Tile currentTile = state.getCurrentTile();
+            if (currentTile != null) {
+                msg.put("currentTileId", currentTile.getId());
+                msg.put("currentTileImage", currentTile.getImageFile());
+            }
+
+            Map<String, String> tileMap = new HashMap<>();
+            for (Map.Entry<Position, PlacedTile> entry :
+                    state.getBoard().getAllTiles().entrySet()) {
+                Position pos = entry.getKey();
+                PlacedTile pt = entry.getValue();
+                String key = pos.x() + "," + pos.y();
+                String val = pt.getTile().getId() + ":" + pt.getTile().getRotation();
+                tileMap.put(key, val);
+            }
+            msg.put("tiles", gson.toJson(tileMap));
+        }
+
+        return msg;
+    }
+
+    /**
+     * Megvizsgalja hogy az aktualis jatekos kuldte e az uzenetet
+     *
+     * @param handler a kuldo kliens
+     * @return igaz ha o kovetkezik
+     */
+    private boolean isCurrentPlayer(ClientHandler handler) {
+        if (engine == null) return false;
+        String currentName = engine.getState().getCurrentPlayer().getName();
+        return currentName.equals(handler.getUsername());
+    }
+
+    /**
+     * Visszaadja a szoba alapadatait a lobby listahoz
+     *
+     * @return szoba info map
+     */
+    public Map<String, Object> getRoomInfo() {
+        Map<String, Object> info = new HashMap<>();
+        info.put("roomId", roomId);
+        info.put("playerCount", players.size());
+        info.put("started", started);
+        return info;
+    }
+
+    public int getRoomId() { return roomId; }
+
+    public boolean isEmpty() {
+        return players.isEmpty() && observers.isEmpty();
+    }
+}
