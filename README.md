@@ -13,220 +13,253 @@ A Carcassonne tarsasjatek halozaton jatszahato Java verzioja, JavaFX grafikus fe
 
 ---
 
-## Aktualis allapot
+## Futtatás GitHub-ról letöltve (fontos!)
 
-### Kesz
+Ha a projektet GitHub-ról töltötted le, a JavaFX SDK **nem része a repository-nak** — azt külön kell beszerezned és konfigurálnod, mert a JavaFX a JDK 11 óta nem része az alaptelepítésnek.
 
-**Model reteg:**
-- `EdgeType` — el tipusok (CITY, ROAD, FIELD)
-- `TerrainFeature` — terulettipusok (CITY, ROAD, FIELD, MONASTERY)
-- `Tile` — kartyasablon, forgatassal (rotated())
-- `Position` — racs koordinata, record tipus, szomszed navigacioval
-- `Meeple` — jatekos figuraja, tulajdonos es terulettipus tarolasaval
-- `Player` — jatekos neve, pontszama, szabad figurak szama (MAX = 7)
-- `PlacedTile` — lerakott kartya pozicioval es figurával egyutt
-- `Board` — jatekpalya, lerakott kartyak pozicio szerint indexelve
-- `GameState` — teljes jatekallapat (palya, jatekosok, fazis, aktualis kartya)
-- `TileDeck` — huzopakli vazlata, draw() es shuffle() mukodik
+### 1. JavaFX SDK letöltése
 
-**Logika reteg:**
-- `PlacementValidator` — el-illesztes ellenorzese
-- `ScoringEngine` — kolostor pontozas, varos/ut pontszam szamitas, gyoztes meghatarozas
+Töltsd le a JavaFX 26 SDK-t az alábbi oldalról:
+[https://gluonhq.com/products/javafx/](https://gluonhq.com/products/javafx/)
 
-**GUI reteg:**
-- `MainApp` — JavaFX belepo pont
-- `SceneManager` — kepernyo-valtasok kezelese
-- `LoginScreen` — felhasznalonev es szerver cim megadasa
-- `LobbyScreen` — jatekszobak listaja, Teszt jatek gombbal
-- `GameScreen` — teljes jatekpalya kepernyo validacioval es meeple kezelesssel
-- `ResultScreen` — vegeredmeny kepernyo
+Válaszd ki az operációs rendszerednek és az architektúrádnak megfelelő verziót, majd csomagold ki egy tetszőleges helyre.
 
-### Meg szukseges munka
+### 2. Resources mappa elhelyezése
 
-**TileDeck — kartyapakli feltoltese:**
-A `TileDeck` osztaly vazlata megvan, a `draw()`, `remaining()` es `shuffle()` metodusok mukodnek.
-Ami meg hianyzik: a `buildDeck()` metodus tartalma, azaz mind a 72 kartya definicioja
-a helyes el-konfiguraciokkal es connectedEdges beallitasokkal.
-Ez onallo, nagy munka — referencia: boardgamegeek.com/image/115467/carcassonne.
-A kezdolap (`drawStartTile()`) egyelore egy egyszeru teszt kartyat ad vissza,
-ezt is le kell cserelni a valodi kezdolarapra.
+A kártyaképeket tartalmazó `resources/` mappa szintén nem része a repository-nak — azt külön kell letölteni és a projekt mellé helyezni.
 
-**FeatureConnector — meg nem kezdett:**
-Az ut es varos befejezesnek ellenorzese flood-fill alapon meg hianyzik.
-A `ScoringEngine` ut/varos pontozasa ennek elkeszulte utan kothetо be teljesen.
+**Fontos:** a `resources/` mappának és a JavaFX SDK mappájának **ugyanabba a könyvtárba kell kerülnie**, mint ahol a projekt gyökere van. Például:
 
-**GameEngine — meg nem kezdett:**
-A jatekiranyito osztaly amely osszekoti a modellt es a logikат.
-Felelos a korsorrendert, a fazisok valtasaert es a pontozas meghivasaert.
-Nem tud GUI-rol es nem tud Socketrol.
+```
+C:\projektek\Carcassone\
+├── src\
+├── resources\
+│   └── tiles\
+└── javafx-sdk-26\
+    └── lib\
+```
 
-**Halozati reteg — meg nem kezdett:**
-- `Server`, `ClientHandler`, `GameRoom` — szerver oldal
-- `ServerConnection`, `MessageListener` — kliens oldal
-- `Message`, `MessageType` — kozos uzenetformatom
+### 3. TileImageCache elérési út beállítása
 
-### Ismert hianyzossagok / meg nem mukodik
+Nyisd meg a `src/Carcassone/gui/TileImageCache.java` fájlt, és az osztályon belüli `BASE_PATH` konstanst írd át a saját `resources/tiles/` mappád teljes elérési útjára:
 
-- **A kartyak veletlenszeruek** — a GameScreen meg teszt kartyakat hasznal,
-  a buildDeck() elkeszulte utan kothetok be a valodi kartyak
-- **Ut es varos pontozas** — a ScoringEngine szamitja de a FeatureConnector nelkul
-  nem tudja meghatározni hogy egy terulet be van-e fejezve
-- **Halozat** — a Login es Lobby kepernyo TCP kapcsolat nelkul mukodik
+```java
+private static final String BASE_PATH =
+        "C:\\projektek\\Carcassone\\resources\\tiles\\";
+```
+
+Windows alatt dupla backslash-t (`\\`) használj, vagy írj forward slash-t (`/`) — mindkettő működik Java-ban.
+
+### 4. VM Options beállítása (IntelliJ IDEA)
+
+A projekt csak megfelelő VM-argumentumokkal indul el. IntelliJ IDEA-ban:
+
+1. Nyisd meg a **Run > Edit Configurations...** menüt
+2. Kattints a futtatási konfigurációdra (vagy hozz létre újat)
+3. A **VM options** mezőbe írd be az alábbi sort, a saját JavaFX SDK elérési útjával:
+
+```
+--module-path "C:\projektek\Carcassone\javafx-sdk-26\lib" --add-modules javafx.controls,javafx.fxml,javafx.graphics
+```
+
+### 5. Fő osztály beállítása
+
+Ugyanebben a konfigurációban a **Main class** mező értéke legyen:
+
+```
+Carcassone.gui.MainApp
+```
+
+Ezután a projekt indítható és minden képernyő megfelelően jelenik meg.
 
 ---
 
-## Modell osztalyok
+## Aktuális állapot
+
+### Elkészült
+
+**Model réteg:**
+- `EdgeType` — él típusok (CITY, ROAD, FIELD)
+- `TerrainFeature` — területtípusok (CITY, ROAD, FIELD, MONASTERY)
+- `Tile` — kártyasablon, forgatással (`rotated()`)
+- `Position` — rács koordináta, record típus, szomszéd navigációval
+- `Meeple` — játékos figurája, tulajdonos és területtípus tárolásával
+- `Player` — játékos neve, pontszáma, szabad figurák száma (MAX = 7)
+- `PlacedTile` — lerakott kártya pozícióval és figurával együtt
+- `Board` — játékpálya, lerakott kártyák pozíció szerint indexelve
+- `GameState` — teljes játékállapot (pálya, játékosok, fázis, aktuális kártya)
+- `TileDeck` — húzópakli, mind a 72 kártya definíciójával, `draw()` és `shuffle()` működik
+
+**Logika réteg:**
+- `PlacementValidator` — él-illesztés ellenőrzése
+- `FeatureConnector` — flood-fill alapú terület-összekötés, befejezettség vizsgálat
+- `ScoringEngine` — kolostor, város, út és mező pontozás, győztes meghatározás
+- `GameEngine` — játékot irányít, körsorrendet, fázisváltást és pontozást kezel
+
+**Hálózati réteg:**
+- `Server` — szerver indítás, párhuzamos játékok kezelése
+- `ClientHandler` — egyes kliensekkel való kommunikáció
+- `GameRoom` — egy játékszoba állapota, szabályok érvényesítése, pontszám számon tartása
+- `ServerConnection` — kliens oldali TCP kapcsolat
+- `MessageListener` — kliens oldali üzenet-fogadó interfész
+- `Message`, `MessageType` — közös üzenetformátum (JSON alapú)
+
+**GUI réteg:**
+- `MainApp` — JavaFX belépőpont
+- `SceneManager` — képernyő-váltások kezelése
+- `LoginScreen` — felhasználónév és szerver cím megadása
+- `LobbyScreen` — játékszobák listája, csatlakozás, létrehozás, megfigyelés
+- `GameScreen` — teljes játékpálya képernyő, validációval és meeple kezeléssel
+- `ResultScreen` — végeredmény képernyő
+- `RulesScreen` — játékszabályok megjelenítése
+- `TileImageCache` — kártyaképek cache-elése
+
+---
+
+## Modell osztályok
 
 ### EdgeType
-Egy kartya elinek tipusat irja le — ezt hasznalja az illesztesvalidalas.
+Egy kártya élének típusát írja le — ezt használja az illesztésvalidálás.
 ```
-CITY   — varosfal el
-ROAD   — ut el
-FIELD  — mezo/ret el
+CITY   — városfal él
+ROAD   — út él
+FIELD  — mező/rét él
 ```
 
 ### TerrainFeature
-Egy kartyán beluli terulettipus — erre lehet figurat rakni, ez alapjan tortenik a pontozas.
+Egy kártyán belüli területtípus — erre lehet figurát rakni, ez alapján történik a pontozás.
 ```
-CITY       — varosresz
-ROAD       — ut
-FIELD      — mezo (csak jatek vegen ertekkel)
+CITY       — városrész
+ROAD       — út
+FIELD      — mező (csak játék végén értékel)
 MONASTERY  — kolostor
 ```
 
 ### Tile
-A kartyasablon. Tartalmazza a negy el tipusat, kolostor/varoscimer flageket,
-es az osszetartozo el-csoportokat (connectedEdges).
-A `rotated()` metodus uj peldanyt ad vissza 90 fokkal elforgatva — az elek is forognak.
+A kártyasablon. Tartalmazza a négy él típusát, kolostor/városacímer flageket,
+és az összetartozó él-csoportokat (connectedEdges).
+A `rotated()` metódus új példányt ad vissza 90 fokkal elforgatva — az élek is forognak.
 
 ### Position
-Racs koordinata (x, y) record tipuskent — equals() es hashCode() automatikus.
-Szomszed navigacios metodusok: `north()`, `south()`, `east()`, `west()`.
+Rács koordináta (x, y) record típusként — `equals()` és `hashCode()` automatikus.
+Szomszéd navigációs metódusok: `north()`, `south()`, `east()`, `west()`.
 
 ### Meeple
-Egy konkret figura peldany — tulajdonos jatekos es terulettipus tarolasaval.
+Egy konkrét figura példány — tulajdonos játékos és területtípus tárolásával.
 
 ### Player
-Jatekos neve, pontszama, szabad figurak szama (MAX = 7).
-- `placeMeeple()` — figura lerakasa
-- `returnMeeple()` — figura visszavetele
-- `addScore(int)` — pont hozzaadasa
+Játékos neve, pontszáma, szabad figurák száma (MAX = 7).
+- `placeMeeple()` — figura lerakása
+- `returnMeeple()` — figura visszavétele
+- `addScore(int)` — pont hozzáadása
 
 ### PlacedTile
-Lerakott kartya a palyan — kartyasablon + pozicio + esetleges figura.
-- `placeMeeple(Meeple)` — figura lerakasa
-- `removeMeeple()` — figura eltavolitasa
+Lerakott kártya a pályán — kártyasablon + pozíció + esetleges figura.
+- `placeMeeple(Meeple)` — figura lerakása
+- `removeMeeple()` — figura eltávolítása
 
 ### Board
-A jatekpalya, HashMap alapon pozicio szerint indexelve.
-- `placeTile(PlacedTile)` — kartya lerakasa
-- `getTileAt(Position)` — kartya lekerdezese
-- `getAllTiles()` — osszes kartya, modosithatatlan Map-kent
+A játékpálya, HashMap alapon pozíció szerint indexelve.
+- `placeTile(PlacedTile)` — kártya lerakása
+- `getTileAt(Position)` — kártya lekérdezése
+- `getAllTiles()` — összes kártya, módosíthatatlan Map-ként
 
 ### GameState
-A jatek teljes allapota: palya, jatekosok, fazis, aktualis kartya, utolso lerakasi pozicio.
-Fazisok: WAITING → PLACE_TILE → PLACE_MEEPLE → GAME_OVER
+A játék teljes állapota: pálya, játékosok, fázis, aktuális kártya, utolsó lerakási pozíció.
+Fázisok: `WAITING → PLACE_TILE → PLACE_MEEPLE → GAME_OVER`
 
 ### TileDeck
-A huzopakli. A `draw()` huz egy kartyat, `remaining()` megadja a maradekot.
-A `buildDeck()` tartalma meg hianyzik — ez tartalmazza majd a 72 kartya definiciojat.
+A húzópakli. A `draw()` húz egy kártyát, `remaining()` megadja a maradékot.
+A `buildDeck()` tartalmazza mind a 72 kártya definícióját a helyes él-konfigurációkkal.
 
 ---
 
-## Logika osztalyok
+## Logika osztályok
 
 ### PlacementValidator
-Ellenorzi hogy egy kartya lerakahto-e egy adott poziciora.
-Ellenorzesi sorrend:
-1. Ures palya: csak (0,0) ervenyes
-2. Foglalt pozicio: ervenytelen
-3. Nincs szomszed: ervenytelen
-4. El-egyezes minden szomszed iranyaban
+Ellenőrzi hogy egy kártya lerakható-e egy adott pozícióra.
+Ellenőrzési sorrend:
+1. Üres pálya: csak (0,0) érvényes
+2. Foglalt pozíció: érvénytelen
+3. Nincs szomszéd: érvénytelen
+4. Él-egyezés minden szomszéd irányában
+
+### FeatureConnector
+Flood-fill alapú területösszekötés és befejezettség-vizsgálat.
+Meghatározza hogy egy út, város vagy kolostor be van-e fejezve,
+valamint összegyűjti az adott területhez tartozó összes meeple-t.
 
 ### ScoringEngine
-A pontozasi logika.
-- Befejezett kolostor: 9 pont (maga + 8 szomszed)
-- Befejezetlen kolostor (jatek vegen): 1 + szomszedok szama
-- Befejezett varos: 2 pont/kartya + 2 pont/badge
-- Befejezetlen varos: 1 pont/kartya + 1 pont/badge
-- Befejezett/befejezetlen ut: 1 pont/kartya
-- Egyenloseg eseten mindenki kap pontot
-- `getWinners()` — legtobb ponttal rendelkezo jatekos(ok)
+A pontozási logika.
+- Befejezett kolostor: 9 pont (maga + 8 szomszéd)
+- Befejezetlen kolostor (játék végén): 1 + szomszédok száma
+- Befejezett város: 2 pont/kártya + 2 pont/badge
+- Befejezetlen város: 1 pont/kártya + 1 pont/badge
+- Befejezett/befejezetlen út: 1 pont/kártya
+- Mező (játék végén): 3 pont/szomszédos befejezett városért
+- Egyenlőség esetén mindenki kap pontot
+- `getWinners()` — legtöbb ponttal rendelkező játékos(ok)
+
+### GameEngine
+A játékot irányító osztály — összekötve a modellt és a logikát.
+Felelős a körsorrendért, a fázisváltásokért és a pontozás meghívásáért.
+Nem tud GUI-ról és nem tud Socketről.
 
 ---
 
 ## GUI — JavaFX
 
-### Kepernyo folyam
+### Képernyő folyam
 
 ```
 MainApp → LoginScreen → LobbyScreen → GameScreen → ResultScreen
                 ↑____________|                          |
-                   vissza gomb                    Uj jatek → Lobby
+                   vissza gomb                    Új játék → Lobby
 ```
 
 ### LoginScreen
-Felhasznalonev es szerver cim megadasara szolgal.
-Ures mezo eseten hibauzenet jelenik meg, nem crash.
+Felhasználónév és szerver cím megadására szolgál.
+Üres mező esetén hibaüzenet jelenik meg, nem crash.
 
 ### LobbyScreen
-Megjeleníti a nyitott jatekszobakat.
-A Teszt jatek gomb TCP/szerver nelkul kozvetlenul a GameScreen-re dob.
+Megjeleníti a nyitott játékszobákat.
+Lehetőségek: csatlakozás meglévő szobához, új szoba létrehozása,
+játék indítása (ha legalább 2 játékos csatlakozott), megfigyelőként csatlakozás.
 
 ### GameScreen
-Canvas alapu jatekpalya kepernyo, dinamikusan novo.
+Canvas alapú játékpálya képernyő, dinamikusan növő.
 
-| Elem | Leiras |
+| Elem | Leírás |
 |---|---|
-| Bal panel | Jatekos kartyak nevvel, figurak szamával, pontszammal |
-| Kozep | Scrollozhato Canvas palya |
-| Jobb panel | Aktualis kartya elonetezet, forgatas, lerak, meeple gombok |
-| Jatek befejezese gomb | Atdob a ResultScreen-re (teszt cel) |
+| Bal panel | Játékos kártyák névvel, figurák számával, pontszámmal |
+| Közép | Scrollozható Canvas pálya |
+| Jobb panel | Aktuális kártya előnézet, forgatás, lerak, meeple gombok |
+| Játékszabályok gomb | Megnyitja a szabályok képernyőt |
 
-Jatek menete a kepernyon:
-1. Kattints egy ervenyes (kiemelt) helyre a palyan
-2. Forgasd el a kartyat ha kell
+Játék menete a képernyőn:
+1. Kattints egy érvényes (kiemelt) helyre a pályán
+2. Forgasd el a kártyát ha kell
 3. Nyomd meg a Lerak gombot
-4. Rakj le meeple-t vagy kattints a Meeple kihagyasa gombra
+4. Kattints a kártyára a meeple-zóna kiválasztásához, majd rakj le meeple-t — vagy kattints a Meeple kihagyása gombra
 
 ### ResultScreen
-Megjeleníti a vegso pontszamokat es a gyoztest.
-Tartalmaz Uj jatek es Kilepes gombot.
+Megjeleníti a végső pontszámokat és a győztest.
+Tartalmaz Új játék és Kilépés gombot.
 
-### Szalszabalyok
+### RulesScreen
+Összefoglalja a legfontosabb játékszabályokat az alkalmazáson belül.
 
-| Muvelet | Szal |
+### Szálszabályok
+
+| Művelet | Szál |
 |---|---|
-| GUI elem modositasa | JavaFX Application Thread (JAT) |
-| Halozati kommunikacio | Hatter szal (Task / new Thread) |
-| Halozati valasz megjelenítese | Platform.runLater() |
+| GUI elem módosítása | JavaFX Application Thread (JAT) |
+| Hálózati kommunikáció | Háttér szál (`new Thread`) |
+| Hálózati válasz megjelenítése | `Platform.runLater()` |
 
 ---
 
-## Tervezett fejlesztesi sorrend
-
-### 1. fazis — Hatro levo logika
-
-- `TileDeck.buildDeck()` — mind a 72 kartya definicioja
-- `FeatureConnector` — flood-fill alapu terulet-osszekotes
-- `GameEngine` — jatekiranyitas, korsorolrend, faziskezeles
-
-### 2. fazis — GUI + logika osszekotese
-
-- Valodi kartyapakli bekotese a GameScreen-be
-- Helyes pontozas megjelenítese
-- Meeple szabalyok teljes ervenyesítese
-
-### 3. fazis — Halozat
-
-- Szerver oldal: `Server`, `ClientHandler`, `GameRoom`
-- Kliens oldal: `ServerConnection`, `MessageListener`
-- Kozos uzenetformatom: `Message`, `MessageType`
-- Login es Lobby halozati bekotese
-
----
-
-## Csomagstruktura
+## Csomagstruktúra
 
 ```
 src/
@@ -237,8 +270,12 @@ src/
     │   ├── LoginScreen.java
     │   ├── LobbyScreen.java
     │   ├── GameScreen.java
-    │   └── ResultScreen.java
+    │   ├── ResultScreen.java
+    │   ├── RulesScreen.java
+    │   └── TileImageCache.java
     ├── logic/
+    │   ├── FeatureConnector.java
+    │   ├── GameEngine.java
     │   ├── PlacementValidator.java
     │   └── ScoringEngine.java
     ├── model/
@@ -254,21 +291,26 @@ src/
     │   └── TileDeck.java
     └── network/
         ├── client/
+        │   ├── MessageListener.java
+        │   └── ServerConnection.java
         ├── server/
+        │   ├── ClientHandler.java
+        │   ├── GameRoom.java
+        │   └── Server.java
         └── shared/
+            ├── Message.java
+            └── MessageType.java
 ```
 
 ---
 
-## Szabalyok amiket betartunk
+## Betartott szabályok
 
-| Szabaly | Indok |
+| Szabály | Indok |
 |---|---|
-| GUI modositas csak JavaFX Application Thread-en | JavaFX nem szalbiztos |
-| Halozati hivas soha nem a GUI szalon | A GUI lefagy tole |
-| GameRoom metodusai synchronized | Tobb szal eri el egyszerre |
-| Port 10000 felett | Rendszerportok jogosultsagot igenyelnek |
-| JSON kommunikacio (nem Java szerializacio) | Biztonsag, olvashatosag |
-| Javadoc minden publikus osztalyra es metodusra | Kotelezo kovetelmeny |
-
----
+| GUI módosítás csak JavaFX Application Thread-en | JavaFX nem szálbiztos |
+| Hálózati hívás soha nem a GUI szálon | A GUI lefagy tőle |
+| GameRoom metódusai synchronized | Több szál éri el egyszerre |
+| Port 10000 felett | Rendszerportok jogosultságot igényelnek |
+| JSON kommunikáció (nem Java szerializáció) | Biztonság, olvashatóság |
+| Javadoc minden publikus osztályra és metódusra | Kötelező követelmény |

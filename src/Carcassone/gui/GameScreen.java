@@ -57,6 +57,9 @@ public class GameScreen {
     private boolean isObserver = false;
     private boolean isMyTurn = false;
 
+    /** Meeple elhelyezesi zona kivalasztas: null=nincs kivalasztva */
+    private String selectedMeepleZone = null; // "NORTH","SOUTH","EAST","WEST","CENTER"
+
     private int minX = 0, maxX = 0, minY = 0, maxY = 0;
 
     /** Jatekosok adatai */
@@ -71,33 +74,12 @@ public class GameScreen {
     /** Halozati listener referencia az eltavolitashoz */
     private MessageListener gameListener;
 
-    /** Helyi teszt mod (nincs halozat) */
-    private final boolean testMode;
-    private TileDeck localDeck;
-
     /**
-     * Letrehozza a jatekpalya kepernyo osszes elemzt
-     * Ha van aktiv szerver kapcsolat, halozati modban indul
-     * Egyebkent teszt modban fut
-     */
-    public GameScreen(boolean b) {
-        this(null);
-    }
-
-    /**
-     * Letrehozza a jatekpalya kepernyo osszes elemzt az elso allapot uzenettel
-     * Ha van aktiv szerver kapcsolat, halozati modban indul
-     * Egyebkent teszt modban fut
+     * Letrehozza a jatekpalya kepernyo osszes elemeit az elso allapot uzenettel
      *
      * @param initialState az elso GAME_STATE uzenet amit a lobby kapott, vagy null
      */
     public GameScreen(Carcassone.network.shared.Message initialState) {
-        this.testMode = (SceneManager.getConnection() == null);
-
-        if (testMode) {
-            localDeck = new TileDeck();
-        }
-
         boardCanvas = new Canvas(800, 600);
         gc = boardCanvas.getGraphicsContext2D();
 
@@ -108,11 +90,7 @@ public class GameScreen {
         boardScroll.setStyle("-fx-background: #5C3A1E; -fx-background-color: #5C3A1E;");
 
         boardCanvas.setOnMouseClicked(e -> {
-            if (isObserver) return;
-            if (!isMyTurn && !testMode) return;
-            int col = (int) (e.getX() / TILE_SIZE) - PADDING + minX;
-            int row = (int) (e.getY() / TILE_SIZE) - PADDING + minY;
-            handleBoardClick(new Position(col, row));
+            handleBoardClickRaw(e.getX(), e.getY());
         });
 
         /** Jobb oldali panel */
@@ -181,28 +159,9 @@ public class GameScreen {
         root.setRight(rightPanel);
         root.setStyle("-fx-background-color: #5C3A1E;");
 
-        if (testMode) {
-            TileDeck startDeck = new TileDeck();
-            Tile startTile = startDeck.drawStartTile();
-            if (startTile != null) {
-                placedTiles.put(new Position(0, 0),
-                        new PlacedTile(startTile, new Position(0, 0)));
-                updateBounds(new Position(0, 0));
-            }
-            currentTile = localDeck.isEmpty() ? null : localDeck.draw();
-            isMyTurn = true;
-            rotateButton.setDisable(false);
-            phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
-            phaseLabel.setText("Rakj le egy kartyat!");
-            currentPlayerIndex = 0;
-            playerNames = new String[]{"Jatekos"};
-            playerScores = new int[]{0};
-            playerMeeples = new int[]{7};
-        } else {
-            setupNetworkListener();
-            if (initialState != null) {
-                handleGameState(initialState);
-            }
+        setupNetworkListener();
+        if (initialState != null) {
+            handleGameState(initialState);
         }
 
         refreshPlayerPanel();
@@ -431,11 +390,12 @@ public class GameScreen {
             skipMeepleButton.setDisable(true);
         } else if ("PLACE_MEEPLE".equals(phase)) {
             meeplePhase = true;
+            selectedMeepleZone = null;
             if (isMyTurn && !isObserver) {
-                meepleButton.setDisable(false);
+                meepleButton.setDisable(true); // zona kivalasztas utan aktiv
                 skipMeepleButton.setDisable(false);
-                phaseLabel.setText("Rakj le meeple-t vagy hagyd ki!");
-                phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
+                phaseLabel.setText("Kattints a kartyara a zona kivalasztashoz!");
+                phaseLabel.setStyle("-fx-text-fill: #00BFFF; -fx-font-size: 12px;");
             } else {
                 meepleButton.setDisable(true);
                 skipMeepleButton.setDisable(true);
@@ -573,12 +533,41 @@ public class GameScreen {
     }
 
     /**
-     * A palyara valo kattintassal eltarolja a poziciot
+     * A palyara valo kattintassal eltarolja a poziciot, meeple fazisban zona kivalasztas
      *
-     * @param pos a kattintott racs pozicio
+     * @param rawX a kattintas x koordinataja pixelben
+     * @param rawY a kattintas y koordinataja pixelben
      */
-    private void handleBoardClick(Position pos) {
+    private void handleBoardClickRaw(double rawX, double rawY) {
+        int col = (int)(rawX / TILE_SIZE) - PADDING + minX;
+        int row = (int)(rawY / TILE_SIZE) - PADDING + minY;
+        Position pos = new Position(col, row);
+
+        if (meeplePhase && isMyTurn && !isObserver && pendingPosition != null
+                && pos.equals(pendingPosition)) {
+            // Meeple zona kivalasztas a lerakott kartyan belul
+            double tileOriginX = (pendingPosition.x() - minX + PADDING) * TILE_SIZE;
+            double tileOriginY = (pendingPosition.y() - minY + PADDING) * TILE_SIZE;
+            double lx = rawX - tileOriginX; // local x a kartyan belul
+            double ly = rawY - tileOriginY; // local y a kartyan belul
+            String zone = getMeepleZone(lx, ly, TILE_SIZE);
+            if (isZoneAvailable(currentTile, zone)) {
+                selectedMeepleZone = zone;
+                phaseLabel.setText("Zona: " + zoneLabel(zone) + " — kattints a Meeple lerak gombra!");
+                phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
+                meepleButton.setDisable(false);
+                drawBoard();
+                highlightMeepleZone(pendingPosition, zone);
+            } else {
+                phaseLabel.setText("Erre a zonara nem rakhatod le!");
+                phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
+            }
+            return;
+        }
+
         if (meeplePhase) return;
+        if (isObserver) return;
+        if (!isMyTurn) return;
         if (placedTiles.containsKey(pos)) return;
         if (!placedTiles.isEmpty() && !hasNeighbour(pos)) return;
         if (!validator.isValid(placedTiles, currentTile, pos)) {
@@ -592,6 +581,108 @@ public class GameScreen {
         placeButton.setDisable(false);
         drawBoard();
         highlightPosition(pos);
+    }
+
+    /**
+     * Meghatarozza melyik meeple-zonat kattintottak a kartyan belul
+     * A kartya 5 zonara van osztva: NORTH, SOUTH, EAST, WEST, CENTER
+     *
+     * @param lx   local x a kartyan belul
+     * @param ly   local y a kartyan belul
+     * @param size a kartya merete
+     * @return a zona neve
+     */
+    private String getMeepleZone(double lx, double ly, int size) {
+        double third = size / 3.0;
+        // Kozepso harmad
+        boolean midX = lx >= third && lx <= 2 * third;
+        boolean midY = ly >= third && ly <= 2 * third;
+        if (midX && midY) return "CENTER";
+        // Szelso harmadok: melyik a legdominalobb
+        double fromN = ly;
+        double fromS = size - ly;
+        double fromE = size - lx;
+        double fromW = lx;
+        double min = Math.min(Math.min(fromN, fromS), Math.min(fromE, fromW));
+        if (min == fromN) return "NORTH";
+        if (min == fromS) return "SOUTH";
+        if (min == fromE) return "EAST";
+        return "WEST";
+    }
+
+    /**
+     * Ellenorzi hogy az adott zona elerheto-e meeple lerakashoz
+     *
+     * @param tile a kartya
+     * @param zone a zona neve
+     * @return igaz ha elerheto
+     */
+    private boolean isZoneAvailable(Tile tile, String zone) {
+        if (tile == null) return false;
+        if ("CENTER".equals(zone)) return tile.isHasMonastery() || hasFieldCenter(tile);
+        EdgeType edge = tile.getEdge(zone);
+        return edge == EdgeType.CITY || edge == EdgeType.ROAD || edge == EdgeType.FIELD;
+    }
+
+    /**
+     * Igaz ha a kartya kozepen mezo van (azaz nem kolostor, de mezo zona)
+     */
+    private boolean hasFieldCenter(Tile tile) {
+        return tile.getNorth() == EdgeType.FIELD
+                || tile.getSouth() == EdgeType.FIELD
+                || tile.getEast() == EdgeType.FIELD
+                || tile.getWest() == EdgeType.FIELD;
+    }
+
+    /**
+     * Magyar megnevezest ad a zona nevehez
+     *
+     * @param zone a zona neve
+     * @return magyar megnevezes
+     */
+    private String zoneLabel(String zone) {
+        return switch (zone) {
+            case "NORTH"  -> "Eszak";
+            case "SOUTH"  -> "Del";
+            case "EAST"   -> "Kelet";
+            case "WEST"   -> "Nyugat";
+            case "CENTER" -> "Kozep (Kolostor/Mezo)";
+            default       -> zone;
+        };
+    }
+
+    /**
+     * Kiemeli a kivalasztott meeple zonat a kartyan
+     *
+     * @param pos  a kartya pozicioja
+     * @param zone a zona neve
+     */
+    private void highlightMeepleZone(Position pos, String zone) {
+        int cx = (pos.x() - minX + PADDING) * TILE_SIZE;
+        int cy = (pos.y() - minY + PADDING) * TILE_SIZE;
+        int third = TILE_SIZE / 3;
+
+        gc.setFill(Color.web("#FFFF00", 0.45));
+        switch (zone) {
+            case "NORTH"  -> gc.fillRect(cx + third, cy,               third, third);
+            case "SOUTH"  -> gc.fillRect(cx + third, cy + 2 * third,   third, third);
+            case "EAST"   -> gc.fillRect(cx + 2*third, cy + third,     third, third);
+            case "WEST"   -> gc.fillRect(cx,           cy + third,     third, third);
+            case "CENTER" -> gc.fillRect(cx + third,   cy + third,     third, third);
+        }
+        // Kartya kerete maradjon
+        gc.setStroke(Color.YELLOW);
+        gc.setLineWidth(3);
+        gc.strokeRect(cx + 1, cy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+
+    /**
+     * A palyara valo kattintassal eltarolja a poziciot
+     *
+     * @param pos a kattintott racs pozicio
+     */
+    private void handleBoardClick(Position pos) {
+        // Legacy - mar nem hasznalt, handleBoardClickRaw valtotta fel
     }
 
     /** Elforgatja az aktualis kartyat 90 fokkal */
@@ -622,58 +713,61 @@ public class GameScreen {
             return;
         }
 
-        if (testMode) {
-            placedTiles.put(pendingPosition,
-                    new PlacedTile(currentTile, pendingPosition));
-            updateBounds(pendingPosition);
-            meeplePhase = true;
-            rotateButton.setDisable(true);
-            placeButton.setDisable(true);
-            meepleButton.setDisable(playerMeeples[currentPlayerIndex] <= 0);
-            skipMeepleButton.setDisable(false);
-            phaseLabel.setText("Rakj le meeple-t vagy hagyd ki!");
-            phaseLabel.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 12px;");
-            drawBoard();
-            drawPreview();
-        } else {
-            isMyTurn = false;
-            rotateButton.setDisable(true);
-            placeButton.setDisable(true);
-            final Position pos = pendingPosition;
-            final int rot = currentRotation;
-            new Thread(() -> {
-                Message msg = new Message(MessageType.PLACE_TILE);
-                msg.put("x", pos.x());
-                msg.put("y", pos.y());
-                msg.put("rotation", rot);
-                SceneManager.getConnection().send(msg);
-            }).start();
-        }
+        isMyTurn = false;
+        rotateButton.setDisable(true);
+        placeButton.setDisable(true);
+        final Position pos = pendingPosition;
+        final int rot = currentRotation;
+        new Thread(() -> {
+            Message msg = new Message(MessageType.PLACE_TILE);
+            msg.put("x", pos.x());
+            msg.put("y", pos.y());
+            msg.put("rotation", rot);
+            SceneManager.getConnection().send(msg);
+        }).start();
     }
 
-    /** Lerakja az aktualis jatekos meeplejet */
+    /** Lerakja az aktualis jatekos meeplejet a kivalasztott zonara */
     private void placeMeeple() {
         if (!meeplePhase) return;
         if (playerMeeples[currentPlayerIndex] <= 0) return;
-
-        if (testMode) {
-            playerMeeples[currentPlayerIndex]--;
-            if (pendingPosition != null) {
-                meepleOnTile.put(pendingPosition, currentPlayerIndex);
-            }
-            playerScores[currentPlayerIndex] += 1;
-            endTurnLocal();
-        } else {
-            meepleButton.setDisable(true);
-            skipMeepleButton.setDisable(true);
-            String[] featureDir = bestMeepleFeature(currentTile);
-            new Thread(() -> {
-                Message msg = new Message(MessageType.PLACE_MEEPLE);
-                msg.put("feature", featureDir[0]);
-                msg.put("direction", featureDir[1]);
-                SceneManager.getConnection().send(msg);
-            }).start();
+        if (selectedMeepleZone == null) {
+            phaseLabel.setText("Eloszor kattints a kartyara a zona kivalasztashoz!");
+            phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
+            return;
         }
+
+        meepleButton.setDisable(true);
+        skipMeepleButton.setDisable(true);
+        String zone = selectedMeepleZone;
+        String feature = zoneToFeature(currentTile, zone);
+        String direction = "CENTER".equals(zone) ? "NORTH" : zone;
+        new Thread(() -> {
+            Message msg = new Message(MessageType.PLACE_MEEPLE);
+            msg.put("feature", feature);
+            msg.put("direction", direction);
+            SceneManager.getConnection().send(msg);
+        }).start();
+    }
+
+    /**
+     * A zona neve alapjan meghatarozza a feature tipust a szerver szamara
+     *
+     * @param tile a kartya
+     * @param zone a zona neve
+     * @return a feature tipusa: CITY, ROAD, FIELD, MONASTERY
+     */
+    private String zoneToFeature(Tile tile, String zone) {
+        if ("CENTER".equals(zone)) {
+            return tile != null && tile.isHasMonastery() ? "MONASTERY" : "FIELD";
+        }
+        if (tile == null) return "FIELD";
+        EdgeType edge = tile.getEdge(zone);
+        return switch (edge) {
+            case CITY  -> "CITY";
+            case ROAD  -> "ROAD";
+            default    -> "FIELD";
+        };
     }
 
     /**
@@ -702,44 +796,14 @@ public class GameScreen {
         return new String[]{"FIELD", "NORTH"};
     }
 
-    /** Kihagyja a meeple lerakas */
+    /** Kihagyja a meeple lerakast */
     private void skipMeeple() {
-        if (testMode) {
-            endTurnLocal();
-        } else {
-            meepleButton.setDisable(true);
-            skipMeepleButton.setDisable(true);
-            new Thread(() -> {
-                Message msg = new Message(MessageType.SKIP_MEEPLE);
-                SceneManager.getConnection().send(msg);
-            }).start();
-        }
-    }
-
-    /** Helyi korlezerest vegez teszt modban */
-    private void endTurnLocal() {
-        meeplePhase = false;
-        pendingPosition = null;
-        currentRotation = 0;
-        rotateButton.setDisable(false);
-        placeButton.setDisable(true);
         meepleButton.setDisable(true);
         skipMeepleButton.setDisable(true);
-
-        currentPlayerIndex = (currentPlayerIndex + 1) % Math.max(1, playerNames.length);
-        currentPlayerLabel.setText("Soron: " + playerNames[currentPlayerIndex]);
-        phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
-        phaseLabel.setText("Rakj le egy kartyat!");
-
-        if (localDeck != null && !localDeck.isEmpty()) {
-            currentTile = localDeck.draw();
-        } else {
-            SceneManager.showResult(playerNames, playerScores);
-            return;
-        }
-        refreshPlayerPanel();
-        drawBoard();
-        drawPreview();
+        new Thread(() -> {
+            Message msg = new Message(MessageType.SKIP_MEEPLE);
+            SceneManager.getConnection().send(msg);
+        }).start();
     }
 
 
@@ -761,7 +825,7 @@ public class GameScreen {
         for (int r = 0; r <= rows; r++)
             gc.strokeLine(0, r * TILE_SIZE, canvasW, r * TILE_SIZE);
 
-        if (!meeplePhase && currentTile != null && (isMyTurn || testMode)) {
+        if (!meeplePhase && currentTile != null && isMyTurn) {
             for (int x = minX - PADDING; x <= maxX + PADDING; x++) {
                 for (int y = minY - PADDING; y <= maxY + PADDING; y++) {
                     Position pos = new Position(x, y);
@@ -794,6 +858,18 @@ public class GameScreen {
                 gc.strokeOval(cx + TILE_SIZE / 2.0 - 8,
                         cy + TILE_SIZE / 2.0 - 8, 16, 16);
             }
+        }
+
+        // Meeple zona kiemelese ha van kivalasztva
+        if (meeplePhase && selectedMeepleZone != null && pendingPosition != null) {
+            highlightMeepleZone(pendingPosition, selectedMeepleZone);
+        } else if (meeplePhase && pendingPosition != null && isMyTurn) {
+            // Zona kivalasztas elott vilago keret mutatja hogy melyik kartyara kell kattintani
+            int hcx = (pendingPosition.x() - minX + PADDING) * TILE_SIZE;
+            int hcy = (pendingPosition.y() - minY + PADDING) * TILE_SIZE;
+            gc.setStroke(Color.web("#00BFFF"));
+            gc.setLineWidth(3);
+            gc.strokeRect(hcx + 1, hcy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
         }
     }
 

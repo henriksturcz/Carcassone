@@ -42,6 +42,9 @@ public class LobbyScreen {
                         if (!observer) {
                             statusLabel.setStyle("-fx-text-fill: green;");
                             statusLabel.setText("Csatlakozas sikeres! Varakozas...");
+                        } else {
+                            statusLabel.setStyle("-fx-text-fill: #00BFFF;");
+                            statusLabel.setText("Megfigyelokent csatlakoztál! Varakozas a jatek indulasara...");
                         }
                     }
                     case GAME_STATE -> {
@@ -117,9 +120,6 @@ public class LobbyScreen {
             }).start();
         });
 
-        Button testButton = new Button("Teszt jatek");
-        testButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white;");
-        testButton.setOnAction(e -> SceneManager.showGame());
 
         Button observeButton = new Button("Megfigyelokent csatlakozas");
         observeButton.setOnAction(e -> {
@@ -152,7 +152,7 @@ public class LobbyScreen {
             SceneManager.showLogin();
         });
 
-        HBox buttons = new HBox(10, joinButton, createButton, startButton, testButton, observeButton, backButton);
+        HBox buttons = new HBox(10, joinButton, createButton, startButton, observeButton, backButton);
         buttons.setAlignment(Pos.CENTER);
 
         root = new VBox(15);

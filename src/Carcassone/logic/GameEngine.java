@@ -5,6 +5,8 @@ import Carcassone.model.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Queue;
+import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +23,7 @@ public class GameEngine {
     /**
      * Letrehoz egy uj GameEnginet a megadott jatekosokkal
      *
-     * @param players a jatekosok listaja (legalabb 2, legfeljebb 5)
+     * @param players a jatekosok listaja (legalabb 2 legfeljebb 5)
      */
     public GameEngine(List<Player> players) {
         this.state = new GameState(players);
@@ -84,7 +86,6 @@ public class GameEngine {
         PlacedTile placedTile = state.getBoard().getTileAt(pos);
         if (placedTile == null || placedTile.hasMeeple()) return false;
 
-        // Ellenorzi hogy a terulet szabade
         if (feature != TerrainFeature.MONASTERY) {
             if (!connector.canPlaceMeeple(state.getBoard(), pos, direction)) {
                 return false;
@@ -107,7 +108,6 @@ public class GameEngine {
 
     /** Lezarja az aktualis kort */
     private void endTurn() {
-        // Kozbenso pontozas befejezett teruletek
         Position lastPos = state.getLastPlacedPosition();
         List<FeatureConnector.FeatureResult> completed =
                 connector.findCompletedFeatures(state.getBoard(), lastPos);
@@ -116,7 +116,6 @@ public class GameEngine {
             scoreCompletedFeature(result, lastPos);
         }
 
-        // Kovetkezo jatekos
         state.nextPlayer();
 
         if (deck.isEmpty()) {
@@ -156,6 +155,20 @@ public class GameEngine {
     }
 
     /**
+     * Meghatározza a feature tipusat a meeplek alapjan
+     * Igy ut es varos teruletek pontosan megkulonboztethetok
+     *
+     * @param result a befejezett terulet adatai
+     * @return a TerrainFeature tipusa vagy null ha nincs meeple
+     */
+    private TerrainFeature detectFeatureType(FeatureConnector.FeatureResult result) {
+        for (Meeple m : result.meeples) {
+            if (m.getFeature() != null) return m.getFeature();
+        }
+        return null;
+    }
+
+    /**
      * Pontoz egy befejezett teruletet es visszaadja a meepleket
      *
      * @param result  a befejezett terulet adatai
@@ -165,29 +178,21 @@ public class GameEngine {
                                        Position lastPos) {
         if (result.meeples.isEmpty()) return;
 
-        List<Player> winners = getMeepleWinners(result.meeples,
-                state.getPlayers());
+        List<Player> winners = getMeepleWinners(result.meeples, state.getPlayers());
 
+        TerrainFeature featureType = detectFeatureType(result);
         int score;
-        PlacedTile firstTile = result.tiles.isEmpty() ? null : result.tiles.getFirst();
 
-        if (firstTile != null && firstTile.getTile().isHasMonastery()) {
-            score = 9; // befejezett kolostor
-        } else {
+        if (featureType == TerrainFeature.MONASTERY) {
+            score = 9;
+        } else if (featureType == TerrainFeature.CITY) {
             int tileCount = result.positions.size();
             int badgeCount = (int) result.tiles.stream()
                     .filter(pt -> pt.getTile().isHasCityBadge())
                     .count();
-
-            boolean isCity = result.tiles.stream()
-                    .anyMatch(pt -> pt.getTile().getNorth() == EdgeType.CITY
-                            || pt.getTile().getEast() == EdgeType.CITY
-                            || pt.getTile().getSouth() == EdgeType.CITY
-                            || pt.getTile().getWest() == EdgeType.CITY);
-
-            score = isCity
-                    ? scoring.calcCityScore(tileCount, badgeCount, true)
-                    : scoring.calcRoadScore(tileCount);
+            score = scoring.calcCityScore(tileCount, badgeCount, true);
+        } else {
+            score = scoring.calcRoadScore(result.positions.size());
         }
 
         for (Player winner : winners) {
@@ -220,7 +225,7 @@ public class GameEngine {
             TerrainFeature feature = meeple.getFeature();
 
             if (feature == TerrainFeature.MONASTERY) {
-                // Befejezetlen kolostor
+
                 int score = 1 + scoring.countNeighbours(state.getBoard(), pos);
                 meeple.getOwner().addScore(score);
                 meeple.getOwner().returnMeeple();
@@ -237,6 +242,10 @@ public class GameEngine {
                 String featureKey = pos.x() + "," + pos.y() + "," + dir;
                 if (alreadyScored.contains(featureKey)) continue;
 
+                EdgeType edgeType = pt.getTile().getEdge(dir);
+                if (feature == TerrainFeature.CITY && edgeType != EdgeType.CITY) continue;
+                if (feature == TerrainFeature.ROAD && edgeType != EdgeType.ROAD) continue;
+
                 FeatureConnector.FeatureResult result =
                         connector.exploreFeature(state.getBoard(), pos, dir);
 
@@ -252,22 +261,18 @@ public class GameEngine {
                         result.meeples, state.getPlayers());
 
                 int tileCount = result.positions.size();
-                int badgeCount = (int) result.tiles.stream()
-                        .filter(t -> t.getTile().isHasCityBadge()).count();
+                int score;
 
-                boolean isCity = result.tiles.stream()
-                        .anyMatch(t -> t.getTile().getNorth() == EdgeType.CITY
-                                || t.getTile().getEast() == EdgeType.CITY
-                                || t.getTile().getSouth() == EdgeType.CITY
-                                || t.getTile().getWest() == EdgeType.CITY);
-
-                int score = isCity
-                        ? scoring.calcCityScore(tileCount, badgeCount, false)
-                        : scoring.calcRoadScore(tileCount);
+                if (feature == TerrainFeature.CITY) {
+                    int badgeCount = (int) result.tiles.stream()
+                            .filter(t -> t.getTile().isHasCityBadge()).count();
+                    score = scoring.calcCityScore(tileCount, badgeCount, false);
+                } else {
+                    score = scoring.calcRoadScore(tileCount);
+                }
 
                 for (Player w : winners) w.addScore(score);
 
-                // Meeplek visszaadasa
                 for (PlacedTile t : result.tiles) {
                     if (t.hasMeeple()) {
                         t.getMeeple().getOwner().returnMeeple();
@@ -280,40 +285,125 @@ public class GameEngine {
         scoreFields();
     }
 
-    /** Mezo pontozas a jatek vegen */
+    /**
+     * Mezo pontozas a jatek vegen
+     * Az osszefuggo mezoterulet teljes halmaza alapjan szamolja a szomszedos befejezett varosoka, nem csak a kozvetlenul szomszedos kartlyakat
+     */
     private void scoreFields() {
         Map<Position, PlacedTile> allTiles = state.getBoard().getAllTiles();
+        Set<String> alreadyScoredField = new HashSet<>();
 
         for (Map.Entry<Position, PlacedTile> entry : allTiles.entrySet()) {
             PlacedTile pt = entry.getValue();
             if (!pt.hasMeeple()) continue;
             if (pt.getMeeple().getFeature() != TerrainFeature.FIELD) continue;
 
-            // Szomszedos befejezett varosok szamlalasa
-            Player owner = pt.getMeeple().getOwner();
-            Set<Position> scoredCities = new HashSet<>();
-
             Position pos = entry.getKey();
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    Position neighbour = new Position(pos.x() + dx, pos.y() + dy);
+            String fieldKey = pos.x() + "," + pos.y();
+            if (alreadyScoredField.contains(fieldKey)) continue;
+
+            Set<Position> fieldPositions = floodFillField(allTiles, pos);
+            for (Position fp : fieldPositions) {
+                alreadyScoredField.add(fp.x() + "," + fp.y());
+            }
+
+            List<Meeple> fieldMeeples = new ArrayList<>();
+            for (Position fp : fieldPositions) {
+                PlacedTile fpt = allTiles.get(fp);
+                if (fpt != null && fpt.hasMeeple()
+                        && fpt.getMeeple().getFeature() == TerrainFeature.FIELD) {
+                    fieldMeeples.add(fpt.getMeeple());
+                }
+            }
+            if (fieldMeeples.isEmpty()) continue;
+
+            List<Player> winners = getMeepleWinners(fieldMeeples, state.getPlayers());
+
+            Set<Position> scoredCityPositions = new HashSet<>();
+            int completedCityCount = 0;
+
+            for (Position fp : fieldPositions) {
+                int[] dx = {0, 0, 1, -1};
+                int[] dy = {-1, 1, 0, 0};
+                for (int d = 0; d < 4; d++) {
+                    Position neighbour = new Position(fp.x() + dx[d], fp.y() + dy[d]);
+                    if (scoredCityPositions.contains(neighbour)) continue;
                     PlacedTile neighbourTile = allTiles.get(neighbour);
                     if (neighbourTile == null) continue;
 
-                    if (isCityTile(neighbourTile) && !scoredCities.contains(neighbour)) {
+                    if (isCityTile(neighbourTile)) {
                         FeatureConnector.FeatureResult cityResult =
                                 connector.exploreFeature(state.getBoard(), neighbour, "NORTH");
                         if (cityResult.completed) {
-                            scoredCities.addAll(cityResult.positions);
-                            owner.addScore(3);
+                            boolean alreadyCounted = false;
+                            for (Position cp : cityResult.positions) {
+                                if (scoredCityPositions.contains(cp)) {
+                                    alreadyCounted = true;
+                                    break;
+                                }
+                            }
+                            if (!alreadyCounted) {
+                                scoredCityPositions.addAll(cityResult.positions);
+                                completedCityCount++;
+                            }
                         }
                     }
                 }
             }
 
-            owner.returnMeeple();
-            pt.removeMeeple();
+            for (Player winner : winners) {
+                winner.addScore(completedCityCount * 3);
+            }
+
+            for (Position fp : fieldPositions) {
+                PlacedTile fpt = allTiles.get(fp);
+                if (fpt != null && fpt.hasMeeple()
+                        && fpt.getMeeple().getFeature() == TerrainFeature.FIELD) {
+                    fpt.getMeeple().getOwner().returnMeeple();
+                    fpt.removeMeeple();
+                }
+            }
         }
+    }
+
+    /**
+     * Bejarja az osszes osszefuggo mezo  kartlyat flood-fill algoritmossal
+     * Ket mezo kartlya osszefuggo ha koznos oldalukon mindketto FIELD elu
+     *
+     * @param allTiles az osszes lerakott kartlya
+     * @param start    a kiindulo pozicio
+     * @return az osszefuggo mezo kartlyak pozicioinak halmaza
+     */
+    private Set<Position> floodFillField(Map<Position, PlacedTile> allTiles,
+                                         Position start) {
+        Set<Position> visited = new HashSet<>();
+        Queue<Position> queue = new LinkedList<>();
+        queue.add(start);
+        visited.add(start);
+
+        while (!queue.isEmpty()) {
+            Position cur = queue.poll();
+            PlacedTile curTile = allTiles.get(cur);
+            if (curTile == null) continue;
+
+            Position[] neighbours = {cur.north(), cur.south(), cur.east(), cur.west()};
+            String[] myDirs     = {"NORTH", "SOUTH", "EAST", "WEST"};
+            String[] theirDirs  = {"SOUTH", "NORTH", "WEST", "EAST"};
+
+            for (int i = 0; i < 4; i++) {
+                Position nb = neighbours[i];
+                if (visited.contains(nb)) continue;
+                PlacedTile nbTile = allTiles.get(nb);
+                if (nbTile == null) continue;
+
+                if (curTile.getTile().getEdge(myDirs[i]) == EdgeType.FIELD
+                        && nbTile.getTile().getEdge(theirDirs[i]) == EdgeType.FIELD) {
+                    visited.add(nb);
+                    queue.add(nb);
+                }
+            }
+        }
+        return visited;
     }
 
     /**
@@ -331,7 +421,7 @@ public class GameEngine {
     /**
      * Meghatározza a meeplek alapjan a nyertes jatekosokat
      *
-     * @param meeples a teruleten levo meeple-k
+     * @param meeples a teruleten levo meeplek
      * @param players az osszes jatekos
      * @return a nyertes jatekosok listaja
      */

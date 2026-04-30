@@ -58,18 +58,7 @@ public class SceneManager {
         primaryStage.show();
     }
 
-    /** Elindítja a teszt jatekot offline modban, bejelentkezestol fuggetlenul */
-    public static void showTestGame() {
-        GameScreen screen = new GameScreen(true);
-        primaryStage.setScene(new Scene(screen.getRoot(), 1100, 700));
-        primaryStage.setTitle("Carcassonne — Teszt Jatek");
-        primaryStage.show();
-    }
 
-    /** Atvallt a jatekpalya kepernyore */
-    public static void showGame() {
-        showGame(null);
-    }
 
     /** Megjeleniti a jatekszabalyok kepernyo */
     public static void showRules() {
