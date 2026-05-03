@@ -1,0 +1,251 @@
+package Carcassone.gui;
+
+import Carcassone.network.shared.Message;
+import Carcassone.network.client.MessageListener;
+import Carcassone.network.shared.MessageType;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+
+/**
+ * A lobby kepernyo
+ * vagy uj szoba letrehozasa vagy meglevohoz csatlakozas
+ */
+public class LobbyScreen {
+
+    private final VBox root;
+    private final ListView<String> roomList;
+    private final Label statusLabel;
+    private MessageListener lobbyListener;
+    /** Beallitja a halozati listenert a szerver uzenetek fogadasahoz */
+
+    private void setupNetworkListener() {
+        if (SceneManager.getConnection() == null) return;
+
+        if (lobbyListener != null) {
+            SceneManager.getConnection().removeListener(lobbyListener);
+        }
+
+        lobbyListener = msg -> {
+            Platform.runLater(() -> {
+                if (msg.getMessageType() == null) return;
+                switch (msg.getMessageType()) {
+                    case ROOM_LIST -> updateRoomList(msg);
+                    case JOIN_OK -> {
+                        boolean observer = Boolean.parseBoolean(
+                                msg.getString("observer"));
+                        if (!observer) {
+                            statusLabel.setStyle("-fx-text-fill: green;");
+                            statusLabel.setText("Csatlakozas sikeres! Varakozas...");
+                        } else {
+                            statusLabel.setStyle("-fx-text-fill: #00BFFF;");
+                            statusLabel.setText("Megfigyelokent csatlakoztál! Varakozas a jatek indulasara...");
+                        }
+                    }
+                    case GAME_STATE -> {
+                        SceneManager.getConnection().removeListener(lobbyListener);
+                        SceneManager.showGame(msg);
+                    }
+                    case ERROR -> {
+                        statusLabel.setStyle("-fx-text-fill: red;");
+                        statusLabel.setText(msg.getString("msg"));
+                    }
+                    default -> {}
+                }
+            });
+        };
+        SceneManager.getConnection().addListener(lobbyListener);
+    }
+
+    /**
+     * A lobby kepernyo elemei
+     *
+     * @param username a bejelentkezett felhasznalonev
+     */
+    public LobbyScreen(String username) {
+        Label title = new Label("Lobby");
+        title.setStyle("-fx-font-size: 28px; -fx-font-weight: bold;");
+
+        Label welcomeLabel = new Label("Udvozlunk, " + username + "!");
+        welcomeLabel.setStyle("-fx-font-size: 14px;");
+
+        Label roomsLabel = new Label("Nyitott jatekszobak:");
+
+        roomList = new ListView<>();
+        roomList.setPrefHeight(300);
+        roomList.setPrefWidth(400);
+
+        statusLabel = new Label("");
+        statusLabel.setStyle("-fx-text-fill: red;");
+
+        Button joinButton = new Button("Csatlakozas");
+        joinButton.setOnAction(e -> {
+            String selected = roomList.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                statusLabel.setText("Valassz ki egy szobat!");
+                return;
+            }
+            try {
+                int roomId = extractRoomId(selected);
+                new Thread(() -> {
+                    Message msg = new Message(MessageType.JOIN_ROOM);
+                    msg.put("roomId", roomId);
+                    SceneManager.getConnection().send(msg);
+                }).start();
+            } catch (Exception ex) {
+                statusLabel.setText("Ervenytelen szoba kivalasztas!");
+            }
+        });
+
+        Button createButton = new Button("Uj szoba");
+        createButton.setOnAction(e -> {
+            new Thread(() -> {
+                Message msg = new Message(MessageType.CREATE_ROOM);
+                SceneManager.getConnection().send(msg);
+            }).start();
+            statusLabel.setText("Uj szoba letrehozasa...");
+        });
+
+        Button startButton = new Button("Jatek inditasa");
+        startButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white;");
+        startButton.setOnAction(e -> {
+            new Thread(() -> {
+                Message msg = new Message(MessageType.START_GAME);
+                SceneManager.getConnection().send(msg);
+            }).start();
+        });
+
+
+        Button observeButton = new Button("Megfigyelokent csatlakozas");
+        observeButton.setOnAction(e -> {
+            String selected = roomList.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                statusLabel.setText("Valassz ki egy szobat!");
+                return;
+            }
+            try {
+                int roomId = extractRoomId(selected);
+                new Thread(() -> {
+                    Message msg = new Message(MessageType.JOIN_AS_OBSERVER);
+                    msg.put("roomId", roomId);
+                    SceneManager.getConnection().send(msg);
+                }).start();
+                statusLabel.setText("Csatlakozas megfigyelokent...");
+            } catch (Exception ex) {
+                statusLabel.setText("Ervenytelen szoba!");
+            }
+        });
+
+        Button backButton = new Button("Vissza");
+        backButton.setOnAction(e -> {
+            if (lobbyListener != null && SceneManager.getConnection() != null) {
+                SceneManager.getConnection().removeListener(lobbyListener);
+            }
+            if (SceneManager.getConnection() != null) {
+                new Thread(() -> SceneManager.getConnection().disconnect()).start();
+            }
+            SceneManager.showLogin();
+        });
+
+        HBox buttons = new HBox(10, joinButton, createButton, startButton, observeButton, backButton);
+        buttons.setAlignment(Pos.CENTER);
+
+        root = new VBox(15);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(40));
+        root.getChildren().addAll(
+                title,
+                welcomeLabel,
+                roomsLabel,
+                roomList,
+                statusLabel,
+                buttons
+        );
+
+        setupNetworkListener();
+    }
+
+    /**
+     * Frissiti a szobak listajat a szerver uzenet alapjan
+     *
+     * @param msg a szerver altal kuldott ROOM_LIST uzenet
+     */
+    private void updateRoomList(Message msg) {
+        roomList.getItems().clear();
+        String roomsJson = msg.getString("rooms");
+        if (roomsJson == null || roomsJson.isBlank()) return;
+        try {
+            int i = 0;
+            while ((i = roomsJson.indexOf("{", i)) != -1) {
+                int end = roomsJson.indexOf("}", i);
+                if (end == -1) break;
+                String part = roomsJson.substring(i, end + 1);
+                String display = parseRoomDisplay(part);
+                if (display != null) roomList.getItems().add(display);
+                i = end + 1;
+            }
+        } catch (Exception e) {
+            statusLabel.setText("Szobak betoltese sikertelen");
+        }
+    }
+
+    /**
+     * Kielemzi egy szoba adatait a JSON reszletbol
+     *
+     * @param json a szoba JSON reszlete
+     * @return a megjelenitendo szoveg
+     */
+    private String parseRoomDisplay(String json) {
+        try {
+            int roomId = extractInt(json, "roomId");
+            int playerCount = extractInt(json, "playerCount");
+            boolean started = json.contains("\"started\":true");
+            String status = started ? "folyamatban" : "varakozas";
+            return "Szoba #" + roomId + " — " + playerCount + "/5 jatekos (" + status + ")";
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Kiszed egy int erteket a JSON reszletbol
+     *
+     * @param json a JSON reszlet
+     * @param key  a kulcs neve
+     * @return az ertek
+     */
+    private int extractInt(String json, String key) {
+        String search = "\"" + key + "\":";
+        int idx = json.indexOf(search);
+        if (idx < 0) return -1;
+        int start = idx + search.length();
+        int end = start;
+        while (end < json.length() &&
+                (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) {
+            end++;
+        }
+        return Integer.parseInt(json.substring(start, end));
+    }
+
+    /**
+     * Kiszedi a szoba idjat a lista elembol
+     *
+     * @param display a lista elem szovege
+     * @return a szoba id
+     */
+    private int extractRoomId(String display) {
+        int hashIdx = display.indexOf('#');
+        int spaceIdx = display.indexOf(' ', hashIdx);
+        return Integer.parseInt(display.substring(hashIdx + 1, spaceIdx));
+    }
+
+    /** Get fuggveny */
+    public VBox getRoot() {
+        return root;
+    }
+}

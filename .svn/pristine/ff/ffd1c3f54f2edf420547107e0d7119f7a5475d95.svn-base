@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * A jatekpalya kepernyo
- * Megjeleníti a palyt a jatekosokat az aktualis kartyat
+ * Megjeleníti a palyt a jatekosokat, az aktualis kartyat
  * Halozaton keresztul kommunikal a szerverrel
  */
 public class GameScreen {
@@ -47,7 +47,7 @@ public class GameScreen {
     private final Map<Position, Integer> meepleOnTile = new HashMap<>();
     private final PlacementValidator validator = new PlacementValidator();
 
-    /** Osszes tile prototipus ID alapjan keresheto */
+    /** Osszes tile prototipus — ID alapjan keresheto */
     private static final List<Tile> ALL_TILE_PROTOTYPES = TileDeck.getAllPrototypes();
 
     private Tile currentTile;
@@ -57,7 +57,7 @@ public class GameScreen {
     private boolean isObserver = false;
     private boolean isMyTurn = false;
 
-    /** Meeple elhelyezesi zona kivalasztas null akkor nincs kivalasztva */
+    /** Meeple elhelyezesi zona kivalasztas: null=nincs kivalasztva */
     private String selectedMeepleZone = null; // "NORTH","SOUTH","EAST","WEST","CENTER"
 
     private int minX = 0, maxX = 0, minY = 0, maxY = 0;
@@ -77,7 +77,7 @@ public class GameScreen {
     /**
      * Letrehozza a jatekpalya kepernyo osszes elemeit az elso allapot uzenettel
      *
-     * @param initialState az elso GAME_STATE uzenet amit a lobby kapott vagy null
+     * @param initialState az elso GAME_STATE uzenet amit a lobby kapott, vagy null
      */
     public GameScreen(Carcassone.network.shared.Message initialState) {
         boardCanvas = new Canvas(800, 600);
@@ -170,7 +170,8 @@ public class GameScreen {
     }
 
     /**
-     * Frissiti a palya allapotat a szerver altal kuldott tiles JSON alapjan
+     * Frissiti a palya allapotat a szerver altal kuldott tiles JSON alapjan.
+     * Format: {"x,y":"tileId:rotation", ...}
      *
      * @param tilesJson  a szerver altal kuldott tiles JSON map
      * @param meeplesJson a szerver altal kuldott meeples JSON map (lehet null)
@@ -182,6 +183,7 @@ public class GameScreen {
 
         if (tilesJson == null || tilesJson.isBlank()) return;
 
+        // Gson format: {"x,y":"tileId:rotation", ...}
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(
                 "\"(-?\\d+),(-?\\d+)\":\"([^:\"]+):(\\d+)\"");
         java.util.regex.Matcher m = p.matcher(tilesJson);
@@ -206,8 +208,9 @@ public class GameScreen {
             }
         }
 
-        // Meeplek feldolgozasa ha van
+        // Meeple-k feldolgozasa ha van
         if (meeplesJson != null && !meeplesJson.isBlank()) {
+            // Format: {"x,y":"playerName:feature", ...}
             java.util.regex.Pattern mp = java.util.regex.Pattern.compile(
                     "\"(-?\\d+),(-?\\d+)\":\"([^:\"]+):([^\"]+)\"");
             java.util.regex.Matcher mm = mp.matcher(meeplesJson);
@@ -217,6 +220,7 @@ public class GameScreen {
                     int y = Integer.parseInt(mm.group(2));
                     String playerName = mm.group(3);
                     Position pos = new Position(x, y);
+                    // Megkeressuk a jatekos indexet
                     int idx = findPlayerIndex(playerName);
                     if (idx >= 0) {
                         meepleOnTile.put(pos, idx);
@@ -229,7 +233,7 @@ public class GameScreen {
     }
 
     /**
-     * Visszaadja a jatekos indexet a neve alapjan vagy -1 ha nem talalhato
+     * Visszaadja a jatekos indexet a neve alapjan, vagy -1 ha nem talalhato
      */
     private int findPlayerIndex(String name) {
         for (int i = 0; i < playerNames.length; i++) {
@@ -255,7 +259,7 @@ public class GameScreen {
 
     /**
      * Megkeresi a megadott idu kartyat a statikus prototipus listabol es elforgatja.
-     * Nem hoz letre uj TileDeck-et igy konzisztens es gyors
+     * Nem hoz letre uj TileDeck-et, igy konzisztens es gyors.
      *
      * @param tileId   a kartya azonositoja
      * @param rotation a forgatas foka
@@ -271,7 +275,7 @@ public class GameScreen {
     }
 
     /**
-     * Megkeresi a megadott kepfajlnevu kartyat a statikus prototipus listabol
+     * Megkeresi a megadott kepfajlnevu kartyat a statikus prototipus listabol.
      *
      * @param imageFile a keresett kepfajl neve
      * @return a megtalalt kartya (0 fokos forgatasban) vagy null
@@ -301,6 +305,7 @@ public class GameScreen {
                     case ERROR      -> {
                         phaseLabel.setText(msg.getString("msg"));
                         phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
+                        // Hiba eseten a gombok visszaallnak hogy ne fagyjon le a jatek
                         if (!meeplePhase && isMyTurn) {
                             rotateButton.setDisable(false);
                             pendingPosition = null;
@@ -357,6 +362,7 @@ public class GameScreen {
         int tileRot      = msg.getInt("currentTileRotation"); // 0 ha nincs
 
         if (tileId != null) {
+            // Preferalt: ID alapjan keressuk, a szerver altal kuldott forgatassal
             currentTile = findTileById(tileId, tileRot);
         } else if (tileImage != null) {
             currentTile = findTileByImage(tileImage);
@@ -364,6 +370,7 @@ public class GameScreen {
             currentTile = null;
         }
 
+        // Forgatas resetelese (az uj kartya mindig 0-foku amig a jatekos nem forgatja)
         currentRotation = (currentTile != null) ? currentTile.getRotation() : 0;
 
         if ("PLACE_TILE".equals(phase)) {
@@ -371,13 +378,8 @@ public class GameScreen {
             pendingPosition = null;
             if (isMyTurn && !isObserver) {
                 rotateButton.setDisable(false);
-                if (!hasAnyValidPosition()) {
-                    phaseLabel.setText("Nincs ervenyes hely — forgass!");
-                    phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
-                } else {
-                    phaseLabel.setText("Rakj le egy kartyat!");
-                    phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
-                }
+                phaseLabel.setText("Rakj le egy kartyat!");
+                phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
             } else {
                 rotateButton.setDisable(true);
                 phaseLabel.setText("Varakozas: " + currentPlayer);
@@ -390,7 +392,7 @@ public class GameScreen {
             meeplePhase = true;
             selectedMeepleZone = null;
             if (isMyTurn && !isObserver) {
-                meepleButton.setDisable(true);
+                meepleButton.setDisable(true); // zona kivalasztas utan aktiv
                 skipMeepleButton.setDisable(false);
                 phaseLabel.setText("Kattints a kartyara a zona kivalasztashoz!");
                 phaseLabel.setStyle("-fx-text-fill: #00BFFF; -fx-font-size: 12px;");
@@ -416,19 +418,13 @@ public class GameScreen {
             rotateButton.setDisable(false);
             pendingPosition = null;
             placeButton.setDisable(true);
-            if (!hasAnyValidPosition()) {
-                phaseLabel.setText("Nincs ervenyes hely — forgass!");
-                phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
-            } else {
-                phaseLabel.setText("Te kovetkezel! Rakj le egy kartyat!");
-                phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
-            }
+            phaseLabel.setText("Te kovetkezel! Rakj le egy kartyat!");
         } else {
             meepleButton.setDisable(false);
             skipMeepleButton.setDisable(false);
             phaseLabel.setText("Te kovetkezel! Rakj le meeple-t vagy hagyd ki!");
-            phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
         }
+        phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
     }
 
     /**
@@ -440,6 +436,7 @@ public class GameScreen {
         if (gameListener != null && SceneManager.getConnection() != null) {
             SceneManager.getConnection().removeListener(gameListener);
         }
+        // Frissiti a pontokat a szerver vegso adataival
         String scoresJson = msg.getString("scores");
         if (scoresJson != null) {
             java.util.regex.Pattern p = java.util.regex.Pattern.compile(
@@ -480,6 +477,7 @@ public class GameScreen {
      */
     private void parsePlayersFromJson(String playersJson) {
         try {
+            // Egyszerű parsing: [{"name":"X","score":0,"meeples":7},...]
             String[] entries = playersJson
                     .replace("[", "").replace("]", "")
                     .split("\\},\\{");
@@ -495,6 +493,7 @@ public class GameScreen {
                 playerMeeples[i] = extractIntVal(e, "meeples");
             }
 
+            // Aktualis jatekos indexenek meghatározása
             String currentPlayer = currentPlayerLabel.getText()
                     .replace("Soron: ", "").trim();
             for (int i = 0; i < playerNames.length; i++) {
@@ -546,6 +545,7 @@ public class GameScreen {
 
         if (meeplePhase && isMyTurn && !isObserver && pendingPosition != null
                 && pos.equals(pendingPosition)) {
+            // Meeple zona kivalasztas a lerakott kartyan belul
             double tileOriginX = (pendingPosition.x() - minX + PADDING) * TILE_SIZE;
             double tileOriginY = (pendingPosition.y() - minY + PADDING) * TILE_SIZE;
             double lx = rawX - tileOriginX; // local x a kartyan belul
@@ -571,11 +571,7 @@ public class GameScreen {
         if (placedTiles.containsKey(pos)) return;
         if (!placedTiles.isEmpty() && !hasNeighbour(pos)) return;
         if (!validator.isValid(placedTiles, currentTile, pos)) {
-            if (hasAnyValidPosition()) {
-                phaseLabel.setText("Ide nem rakhatod le! Valassz mas helyet.");
-            } else {
-                phaseLabel.setText("Nincs ervenyes hely — forgass!");
-            }
+            phaseLabel.setText("Ide nem rakhatod le!");
             phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
             return;
         }
@@ -598,9 +594,11 @@ public class GameScreen {
      */
     private String getMeepleZone(double lx, double ly, int size) {
         double third = size / 3.0;
+        // Kozepso harmad
         boolean midX = lx >= third && lx <= 2 * third;
         boolean midY = ly >= third && ly <= 2 * third;
         if (midX && midY) return "CENTER";
+        // Szelso harmadok: melyik a legdominalobb
         double fromN = ly;
         double fromS = size - ly;
         double fromE = size - lx;
@@ -672,6 +670,7 @@ public class GameScreen {
             case "WEST"   -> gc.fillRect(cx,           cy + third,     third, third);
             case "CENTER" -> gc.fillRect(cx + third,   cy + third,     third, third);
         }
+        // Kartya kerete maradjon
         gc.setStroke(Color.YELLOW);
         gc.setLineWidth(3);
         gc.strokeRect(cx + 1, cy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
@@ -699,16 +698,7 @@ public class GameScreen {
             }
         }
         drawBoard();
-        if (pendingPosition != null) {
-            highlightPosition(pendingPosition);
-        }
-        if (!hasAnyValidPosition()) {
-            phaseLabel.setText("Ebben az allasban nincs ervenyes hely — forgass!");
-            phaseLabel.setStyle("-fx-text-fill: red; -fx-font-size: 12px;");
-        } else if (isMyTurn) {
-            phaseLabel.setText("Rakj le egy kartyat!");
-            phaseLabel.setStyle("-fx-text-fill: #00FF00; -fx-font-size: 12px;");
-        }
+        if (pendingPosition != null) highlightPosition(pendingPosition);
     }
 
     /** Lerakja az aktualis kartyat a kivalasztott poziciora */
@@ -874,6 +864,7 @@ public class GameScreen {
         if (meeplePhase && selectedMeepleZone != null && pendingPosition != null) {
             highlightMeepleZone(pendingPosition, selectedMeepleZone);
         } else if (meeplePhase && pendingPosition != null && isMyTurn) {
+            // Zona kivalasztas elott vilago keret mutatja hogy melyik kartyara kell kattintani
             int hcx = (pendingPosition.x() - minX + PADDING) * TILE_SIZE;
             int hcy = (pendingPosition.y() - minY + PADDING) * TILE_SIZE;
             gc.setStroke(Color.web("#00BFFF"));
@@ -884,7 +875,7 @@ public class GameScreen {
 
     /**
      * Rajzol egy kartyat a megadott poziciora es meretre
-     * Ha a kartyahoz van kep azt rajzolja ki egyebkent fallback rajzolas
+     * Ha a kartyahoz van kep azt rajzolja ki, egyebkent fallback rajzolas
      *
      * @param gc   a grafikus kontextus
      * @param tile a rajzolandó kartya
@@ -947,7 +938,7 @@ public class GameScreen {
     }
 
     /**
-     * Rajzolja az aktualis kartya elonetezetet
+     * Rajzolja az aktualis kartya elonetezetet.
      */
     private void drawPreview() {
         GraphicsContext pgc = previewCanvas.getGraphicsContext2D();
@@ -971,7 +962,7 @@ public class GameScreen {
         gc.strokeRect(cx + 1, cy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
     }
 
-    /** Frissiti a bal oldali jatekos panelt */
+    /** Frissiti a bal oldali jatekos panelt. */
     private void refreshPlayerPanel() {
         playerPanel.getChildren().clear();
         Label header = new Label("Jatekosok");
@@ -1010,7 +1001,7 @@ public class GameScreen {
 
 
     /**
-     * Megvizsgalja hogy a poziciohoz van e lerakott szomszed
+     * Megvizsgalja hogy a poziciohoz van-e lerakott szomszed
      *
      * @param pos a vizsgalt pozicio
      * @return igaz ha van szomszed
@@ -1020,26 +1011,6 @@ public class GameScreen {
                 || placedTiles.containsKey(pos.south())
                 || placedTiles.containsKey(pos.east())
                 || placedTiles.containsKey(pos.west());
-    }
-
-    /**
-     * Megvizsgalja hogy az aktualis kartyanak van e legalabb egy ervenyes lerakasi helye a jelenlegi forgatasban ha nincs a jatekos nem tud mit csinalni amig nem forgat
-     * @return igaz ha letezik legalabb egy ervenyes pozicio
-     */
-    private boolean hasAnyValidPosition() {
-        if (currentTile == null) return false;
-        for (Position placed : placedTiles.keySet()) {
-            Position[] candidates = {
-                    placed.north(), placed.south(), placed.east(), placed.west()
-            };
-            for (Position candidate : candidates) {
-                if (!placedTiles.containsKey(candidate)
-                        && validator.isValid(placedTiles, currentTile, candidate)) {
-                    return true;
-                }
-            }
-        }
-        return placedTiles.isEmpty();
     }
 
     /**

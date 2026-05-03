@@ -35,13 +35,14 @@ public class Server {
      * @throws IOException ha a port nem nyithato meg
      */
     public void start() throws IOException {
-        ServerSocket serverSocket = new ServerSocket(PORT);
-        System.out.println("Szerver elindult a " + PORT + " porton");
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Szerver elindult a " + PORT + " porton");
 
-        while (true) {
-            Socket clientSocket = serverSocket.accept();
-            System.out.println("Uj kliens csatlakozott: " + clientSocket.getInetAddress());
-            new Thread(new ClientHandler(clientSocket, this)).start();
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Uj kliens csatlakozott: " + clientSocket.getInetAddress());
+                new Thread(new ClientHandler(clientSocket, this)).start();
+            }
         }
     }
 
